@@ -173,6 +173,8 @@ def build_stylesheet(base: int) -> str:
         alternate-background-color: #FBFAF7;
     }}
     QTableWidget::item {{ padding: {p(6)}px {p(10)}px; border-bottom: 1px solid {BORDER}; }}
+    QTableWidget::item:hover {{ background: {PRIMARY_SOFT}; }}
+    QTableWidget::item:selected {{ background: {PRIMARY}; color: white; font-weight: bold; }}
     QHeaderView::section {{
         background: {SURFACE_ALT}; color: {MUTED}; padding: {p(8)}px {p(10)}px; border: none;
         border-bottom: 1px solid {BORDER}; font-weight: bold; font-size: {small + 1}pt;
@@ -194,6 +196,9 @@ def build_stylesheet(base: int) -> str:
     QMessageBox QLabel {{ font-size: {base + 1}pt; }}
     QMessageBox QPushButton {{ min-width: {p(120)}px; }}
 
+    /* keyboard focus must always be visible (placed last so it wins over role styles) */
+    QPushButton:focus, QPushButton[role]:focus {{ border: {p(3)}px solid #D99A00; }}
+    QMessageBox QPushButton:default {{ border: {p(3)}px solid #D99A00; }}
     QScrollBar:vertical {{ background: transparent; width: {p(14)}px; margin: {p(2)}px; }}
     QScrollBar::handle:vertical {{ background: #CFC9BF; border-radius: {p(5)}px; min-height: {p(40)}px; }}
     QScrollBar::handle:vertical:hover {{ background: #B5AEA2; }}

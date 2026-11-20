@@ -66,3 +66,14 @@ Do not introduce new colors casually; add a token if truly needed.
 - No horizontal clipping, no overlap, primary action visible without scrolling.
 - Empty states have a friendly sentence (e.g. 「輸入車牌後，這裡會顯示…」).
 - Then verify on the real Windows exe (`workflows/build-release.md`).
+
+## Visible state (mandatory)
+
+- Selected table row: solid accent background, white bold text (`::item:selected`);
+  hover tint on rows. Anything the user must click first (a row) needs a visible
+  confirmation of what is selected (carwash: 「目前選擇」 box).
+- Keyboard focus: amber ring on every focusable button; inputs show an accent border.
+- No hidden Enter behaviour: `button()` turns off autoDefault; dialogs that want
+  Enter to save handle it in `keyPressEvent`; message boxes default to the safe button.
+- Test it: `tests/test_ui.py` style tests click, press Enter/ESC and assert the
+  visible state, not only the data.
