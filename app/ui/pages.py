@@ -474,6 +474,8 @@ class ReportPage(Page):
             self.period.setText(f"{start.year()} 年 {start.month()} 月")
         else:
             self.period.setText(f"{start.year()} 年")
+        today = QDate.currentDate()
+        self.now_btn.setVisible(not (start <= today <= end))  # only when away from the current period
         bucket = "month" if self.mode == "year" else "day"
         r = self.db.report(start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"), bucket)
         self.tiles["total"].set(fmt_money(r["total"]))

@@ -37,7 +37,7 @@ def main() -> int:
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(config.APP_NAME)
-    icon_path = os.path.join(getattr(sys, "_MEIPASS", config.app_dir()), "assets", "app.ico")
+    icon_path = config.resource_path("assets", "app.ico")
     if os.path.exists(icon_path):
         app.setWindowIcon(QtGui.QIcon(icon_path))
 

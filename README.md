@@ -1,9 +1,9 @@
-# 汽車保養紀錄 (autorepair_db)
+# 汽車保養資料庫 (autorepair_db)
 
 給汽車保養廠使用的離線記帳小程式。專為不熟悉電腦的長輩設計：大字、大按鈕、全中文、步驟少。
 A small offline Windows app for an auto-repair shop to record each customer visit.
 
-- 不需要安裝、不需要網路、不需要伺服器 — 一個 `汽車保養紀錄.exe` 點兩下就能用
+- 不需要安裝、不需要網路、不需要伺服器 — 一個 `汽車保養資料庫.exe` 點兩下就能用
 - 紀錄：**日期、車牌、金額、保養項目**（可另外填公里數、備註）
 - 保養項目永久保存，可隨時新增 / 改名 / 排序 / 刪除（在輸入畫面按「管理項目」、在項目按鈕上按右鍵，或到「設定」）；刪除不影響舊紀錄
 - 紀錄可新增、查詢、修改、刪除
@@ -16,7 +16,7 @@ A small offline Windows app for an auto-repair shop to record each customer visi
 
 ## 使用方式（給店家）
 
-1. 把 `汽車保養紀錄.exe` 放到一個資料夾裡（例如桌面上的「保養紀錄」資料夾），點兩下開啟。
+1. 把 `汽車保養資料庫.exe` 放到一個資料夾裡（例如桌面上的「保養紀錄」資料夾），點兩下開啟。
 2. 第一次開啟會在 exe 旁邊建立 `autorepair_data` 資料夾，**所有資料都在這裡**。
    搬家時把整個資料夾（exe + `autorepair_data`）一起複製即可。
 3. 換新電腦：把 exe 複製到新電腦 → 開啟 →「備份 / 還原」→「從備份檔還原」→ 選擇之前的備份檔。
@@ -32,7 +32,7 @@ Python 3.12 + PyQt5 + SQLite（Python 內建），PyInstaller 打包成單一 ex
 python -m pip install -r requirements.txt
 python start.py               :: run from source
 python -m pytest -q tests     :: data-layer tests
-build_exe.bat                 :: tests + icon + build -> dist\汽車保養紀錄.exe
+build_exe.bat                 :: tests + icon + build -> dist\汽車保養資料庫.exe
 ```
 
 Set `AUTOREPAIR_DATA_DIR` to use a different data folder (handy for testing).

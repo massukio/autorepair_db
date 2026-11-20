@@ -7,7 +7,7 @@ folder (exe + data) can be copied anywhere. If that folder is not writable
 import os
 import sys
 
-APP_NAME = "汽車保養紀錄"
+APP_NAME = "汽車保養資料庫"
 APP_VERSION = "1.2.0"
 APP_AUTHOR = "Sukio Lin"
 APP_CREATED_YEAR = 2026
@@ -35,6 +35,12 @@ SCALE_EXPONENT = 0.7
 MIN_FONT_PT, MAX_FONT_PT = 12, 34
 FONT_SCALES = {"小": 0.85, "中": 1.0, "大": 1.15, "特大": 1.3}
 DEFAULT_FONT_SIZE = "中"
+
+
+def resource_path(*parts: str) -> str:
+    """Path of a bundled file (works from source and from the PyInstaller exe)."""
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
 
 
 def app_dir() -> str:

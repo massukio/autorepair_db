@@ -10,3 +10,4 @@ autorepair_data/
 .claude/
 .pytest_cache/
 assets/app.ico
+assets/app.png

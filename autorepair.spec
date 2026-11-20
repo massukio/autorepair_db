@@ -3,7 +3,8 @@
 import os
 
 icon = os.path.join("assets", "app.ico")
-datas = [(icon, "assets")] if os.path.exists(icon) else []
+png = os.path.join("assets", "app.png")
+datas = [(p, "assets") for p in (icon, png) if os.path.exists(p)]
 
 a = Analysis(
     ["start.py"],
@@ -25,7 +26,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="汽車保養紀錄",
+    name="汽車保養資料庫",
     debug=False,
     strip=False,
     upx=False,

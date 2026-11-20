@@ -1,10 +1,26 @@
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from app import config
 from app.db import Database
 from app.ui.pages import BackupPage, HistoryPage, NewRecordPage, ReportPage, SettingsPage
 from app.ui.style import base_font_for, build_stylesheet, set_scale, sized
 from app.ui.widgets import button
+
+
+class IconMark(QtWidgets.QWidget):
+    """The app icon, drawn smoothly at whatever size the UI scale gives it."""
+
+    def __init__(self, path: str, parent=None):
+        super().__init__(parent)
+        self.pix = QtGui.QPixmap(path)
+
+    def paintEvent(self, _event):
+        if self.pix.isNull():
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        p.drawPixmap(self.rect(), self.pix)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -22,9 +38,10 @@ class MainWindow(QtWidgets.QMainWindow):
         nav = QtWidgets.QHBoxLayout(header)
         sized(nav, "setContentsMargins", 20, 10, 20, 10)
         sized(nav, "setSpacing", 6)
-        mark = QtWidgets.QLabel("保")
-        mark.setProperty("role", "brandmark")
+        mark = IconMark(config.resource_path("assets", "app.png"))
+        sized(mark, "setFixedSize", 44, 44)
         nav.addWidget(mark)
+        nav.addSpacing(6)
         brand = QtWidgets.QLabel(config.APP_NAME)
         brand.setProperty("role", "brand")
         nav.addWidget(brand)
