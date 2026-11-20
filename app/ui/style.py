@@ -148,7 +148,7 @@ def build_stylesheet(base: int) -> str:
         font-size: {base + 1}pt; padding: {p(15)}px {p(8)}px; border-radius: {p(12)}px;
         border: 1px solid {BORDER_STRONG};
     }}
-    QPushButton[role="item"]:checked {{ background: {SUCCESS}; color: white; border: 1px solid {SUCCESS_DARK}; font-weight: bold; }}
+    QPushButton[role="item"]:checked {{ background: {SUCCESS}; color: white; border: 1px solid {SUCCESS_DARK}; }}
     QPushButton[role="item"]:checked:hover {{ background: {SUCCESS_DARK}; }}
     QPushButton[role="date"] {{ font-size: {base + 3}pt; font-weight: bold; padding: {p(8)}px {p(20)}px; }}
     QFrame[role="segbar"] {{ background: #E9E5DE; border-radius: {p(12)}px; }}
@@ -167,14 +167,14 @@ def build_stylesheet(base: int) -> str:
     QLineEdit[role="small"] {{ font-size: {base + 1}pt; }}
 
     /* ---------- lists & tables ---------- */
-    QTableWidget {{
+    QTableView {{
         background: {SURFACE}; border: none; gridline-color: transparent; font-size: {base}pt;
         selection-background-color: {PRIMARY_SOFT}; selection-color: {TEXT};
         alternate-background-color: #FBFAF7;
     }}
-    QTableWidget::item {{ padding: {p(6)}px {p(10)}px; border-bottom: 1px solid {BORDER}; }}
-    QTableWidget::item:hover {{ background: {PRIMARY_SOFT}; }}
-    QTableWidget::item:selected {{ background: {PRIMARY}; color: white; font-weight: bold; }}
+    QTableView::item {{ padding: {p(6)}px {p(10)}px; border-bottom: 1px solid {BORDER}; }}
+    QTableView::item:hover {{ background: {PRIMARY_SOFT}; }}
+    QTableView::item:selected {{ background: {PRIMARY}; color: white; font-weight: bold; }}
     QHeaderView::section {{
         background: {SURFACE_ALT}; color: {MUTED}; padding: {p(8)}px {p(10)}px; border: none;
         border-bottom: 1px solid {BORDER}; font-weight: bold; font-size: {small + 1}pt;

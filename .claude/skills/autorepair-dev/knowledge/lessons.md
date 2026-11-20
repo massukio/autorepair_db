@@ -127,3 +127,8 @@ Entry format:
   qFatal. (The app's `start.py` installs a hook that logs to 錯誤紀錄.log.)
 - Rule: tests install a hook that records such exceptions and fails the test
   (`tests/conftest.py`); stop timers before closing the database in fixtures.
+
+## 2026-11-20 — Selected items show by colour only
+- A ✓ prefix / bold on selected item chips changed their width. Rule: colour only.
+  (Shared with new_again_db, where it made wrapped chips jump lines.)
+- Stylesheet table rules use `QTableView` selectors (also match QTableWidget).
