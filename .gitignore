@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+autorepair_data/
+*.db
+*.log
+.claude/
+.pytest_cache/
+assets/app.ico
