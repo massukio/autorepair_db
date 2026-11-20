@@ -23,8 +23,11 @@ DEFAULT_ITEMS = [
 
 # The UI scales with the window size: at REF_WIDTH x REF_HEIGHT the base font
 # is REF_FONT_PT. The user's 小/中/大/特大 choice multiplies that.
-REF_WIDTH, REF_HEIGHT, REF_FONT_PT = 1280, 760, 17
-MIN_FONT_PT, MAX_FONT_PT = 10, 34
+# Calibrated on Windows (Microsoft JhengHei). Shrinking is softened by
+# SCALE_EXPONENT because every page can scroll when space runs out.
+REF_WIDTH, REF_HEIGHT, REF_FONT_PT = 1280, 760, 19
+SCALE_EXPONENT = 0.7
+MIN_FONT_PT, MAX_FONT_PT = 12, 34
 FONT_SCALES = {"小": 0.85, "中": 1.0, "大": 1.15, "特大": 1.3}
 DEFAULT_FONT_SIZE = "中"
 

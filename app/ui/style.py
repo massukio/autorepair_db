@@ -52,7 +52,7 @@ def set_scale(new_scale: float) -> None:
 
 
 def base_font_for(width: int, height: int, factor: float) -> int:
-    fit = min(width / config.REF_WIDTH, height / config.REF_HEIGHT)
+    fit = min(width / config.REF_WIDTH, height / config.REF_HEIGHT) ** config.SCALE_EXPONENT
     base = round(config.REF_FONT_PT * fit * factor)
     return max(config.MIN_FONT_PT, min(config.MAX_FONT_PT, base))
 
