@@ -4,6 +4,8 @@ from typing import Iterable, List, Optional
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QDate, pyqtSignal
 
+from app.ui.style import sized
+
 WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
@@ -14,8 +16,30 @@ def set_role(widget: QtWidgets.QWidget, role: str) -> QtWidgets.QWidget:
     return widget
 
 
+class WrapLabel(QtWidgets.QLabel):
+    """Word-wrapped label that always reserves enough height for all its lines."""
+
+    def _fit(self):
+        h = self.heightForWidth(self.width())
+        if h > 0 and h != self.minimumHeight():
+            self.setMinimumHeight(h)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit()
+
+    def setText(self, text):
+        super().setText(text)
+        QtCore.QTimer.singleShot(0, self._fit)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QtCore.QEvent.StyleChange, QtCore.QEvent.FontChange):
+            QtCore.QTimer.singleShot(0, self._fit)
+
+
 def label(text: str, role: Optional[str] = None) -> QtWidgets.QLabel:
-    lb = QtWidgets.QLabel(text)
+    lb = (WrapLabel if role in ("hint", "info") else QtWidgets.QLabel)(text)
     if role:
         lb.setProperty("role", role)
     lb.setWordWrap(role in ("hint", "info"))
@@ -82,7 +106,7 @@ def ask_text(parent, title: str, prompt: str, text: str = "") -> Optional[str]:
     lay.setSpacing(16)
     lay.addWidget(label(prompt, "field"))
     edit = QtWidgets.QLineEdit(text)
-    edit.setMinimumWidth(420)
+    sized(edit, "setMinimumWidth", 420)
     lay.addWidget(edit)
     row = QtWidgets.QHBoxLayout()
     row.addStretch(1)
@@ -109,7 +133,7 @@ class CalendarDialog(QtWidgets.QDialog):
         self.cal.setFirstDayOfWeek(QtCore.Qt.Sunday)
         self.cal.setVerticalHeaderFormat(QtWidgets.QCalendarWidget.NoVerticalHeader)
         self.cal.setSelectedDate(date)
-        self.cal.setMinimumSize(560, 420)
+        sized(self.cal, "setMinimumSize", 560, 420)
         self.cal.activated.connect(lambda _d: self.accept())
         lay.addWidget(self.cal)
         lay.addWidget(label("點一下日期，再按「確定」。", "hint"))
@@ -175,7 +199,7 @@ class OptionalDateButton(QtWidgets.QPushButton):
         self._date: Optional[QDate] = None
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.clicked.connect(self._pick)
-        self.setMinimumWidth(260)
+        sized(self, "setMinimumWidth", 260)
         self._refresh()
 
     def _pick(self):
@@ -201,6 +225,9 @@ class ItemGrid(QtWidgets.QWidget):
     """Big toggle buttons, one per service item, plus a 「＋ 新增項目」 button."""
 
     add_requested = pyqtSignal()
+    manage_requested = pyqtSignal()
+    rename_requested = pyqtSignal(int, str)
+    delete_requested = pyqtSignal(int, str)
 
     def __init__(self, parent=None, max_columns: int = 5):
         super().__init__(parent)
@@ -212,6 +239,9 @@ class ItemGrid(QtWidgets.QWidget):
         self.buttons: List[QtWidgets.QPushButton] = []
         self.add_btn = button("＋ 新增項目", "additem", self.add_requested.emit)
         self.add_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        self.manage_btn = button("✎ 管理項目", "additem", self.manage_requested.emit)
+        self.manage_btn.setToolTip("修改名稱、刪除、調整順序")
+        self.manage_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
 
     def set_items(self, items: Iterable[dict], keep_selection: bool = True):
         selected = set(self.selected_ids()) if keep_selection else set()
@@ -230,11 +260,14 @@ class ItemGrid(QtWidgets.QWidget):
             b.setChecked(it["id"] in selected)
             self._decorate(b)
             b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+            b.setToolTip("按右鍵可以改名或刪除")
+            b.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            b.customContextMenuRequested.connect(lambda pos, btn=b: self._menu(btn, pos))
             self.buttons.append(b)
         self._relayout(force=True)
 
     def _best_columns(self) -> int:
-        widgets = self.buttons + [self.add_btn]
+        widgets = self._all()
         cell = max(w.sizeHint().width() for w in widgets) + self.grid.spacing()
         width = self.width() if self.width() > 50 else 700
         return max(2, min(self.max_columns, width // max(cell, 1)))
@@ -244,13 +277,23 @@ class ItemGrid(QtWidgets.QWidget):
         if cols == self.columns and not force:
             return
         self.columns = cols
-        for w in self.buttons + [self.add_btn]:
+        for w in self._all():
             self.grid.removeWidget(w)
-        for i, w in enumerate(self.buttons + [self.add_btn]):
+        for i, w in enumerate(self._all()):
             self.grid.addWidget(w, i // cols, i % cols)
             w.show()
         for c in range(self.max_columns):
             self.grid.setColumnStretch(c, 1 if c < cols else 0)
+
+    def _all(self):
+        return self.buttons + [self.add_btn, self.manage_btn]
+
+    def _menu(self, btn, pos):
+        iid, name = btn.property("item_id"), btn.property("item_name")
+        menu = QtWidgets.QMenu(self)
+        menu.addAction(f"修改「{name}」的名稱", lambda: self.rename_requested.emit(iid, name))
+        menu.addAction(f"刪除「{name}」", lambda: self.delete_requested.emit(iid, name))
+        menu.exec_(btn.mapToGlobal(pos))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -286,7 +329,7 @@ def make_table(headers: List[str]) -> QtWidgets.QTableWidget:
     t.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
     t.setAlternatingRowColors(True)
     t.verticalHeader().setVisible(False)
-    t.verticalHeader().setDefaultSectionSize(44)
+    sized(t.verticalHeader(), "setDefaultSectionSize", 44)
     t.setWordWrap(True)
     return t
 

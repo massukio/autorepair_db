@@ -289,6 +289,53 @@ class Database:
         recs = self._attach_items(self.conn.execute(sql, args).fetchall())
         return recs[0] if recs else None
 
+    def plate_summary(self, plate: str) -> Optional[dict]:
+        """Visit statistics for one car (exact plate match, dash-insensitive)."""
+        key = plate_key(plate)
+        if not key:
+            return None
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS visits, COALESCE(SUM(amount), 0) AS total, "
+            "MIN(date) AS first_date, MAX(date) AS last_date, MAX(plate) AS plate "
+            "FROM records WHERE plate_key=?", (key,)).fetchone()
+        if not row["visits"]:
+            return None
+        summary = dict(row)
+        dates = sorted({r[0] for r in self.conn.execute(
+            "SELECT date FROM records WHERE plate_key=?", (key,))})
+        summary["visit_days"] = len(dates)
+        if len(dates) >= 2:
+            d0 = _dt.date.fromisoformat(dates[0])
+            d1 = _dt.date.fromisoformat(dates[-1])
+            summary["avg_interval_days"] = round((d1 - d0).days / (len(dates) - 1))
+        else:
+            summary["avg_interval_days"] = None
+        summary["days_since_last"] = (_dt.date.today() - _dt.date.fromisoformat(dates[-1])).days
+        return summary
+
+    def report(self, date_from: str, date_to: str, bucket: str = "day") -> dict:
+        """Totals for a period. bucket = 'day' or 'month' for the breakdown table."""
+        args = (date_from, date_to)
+        where = "WHERE date >= ? AND date <= ?"
+        t = self.conn.execute(
+            f"SELECT COUNT(*) AS visits, COALESCE(SUM(amount), 0) AS total, "
+            f"COUNT(DISTINCT plate_key) AS cars FROM records {where}", args).fetchone()
+        key = "date" if bucket == "day" else "substr(date, 1, 7)"
+        buckets = [dict(r) for r in self.conn.execute(
+            f"SELECT {key} AS period, COUNT(*) AS visits, SUM(amount) AS total "
+            f"FROM records {where} GROUP BY period ORDER BY period", args)]
+        items = [dict(r) for r in self.conn.execute(
+            f"SELECT i.name AS name, COUNT(*) AS times FROM record_items ri "
+            f"JOIN records r ON r.id = ri.record_id JOIN items i ON i.id = ri.item_id "
+            f"WHERE r.date >= ? AND r.date <= ? GROUP BY i.id ORDER BY times DESC, i.sort_order",
+            args)]
+        customers = [dict(r) for r in self.conn.execute(
+            f"SELECT MAX(plate) AS plate, COUNT(*) AS visits, SUM(amount) AS total, "
+            f"MAX(date) AS last_date FROM records {where} GROUP BY plate_key "
+            f"ORDER BY visits DESC, total DESC LIMIT 50", args)]
+        return {"visits": t["visits"], "total": t["total"], "cars": t["cars"],
+                "buckets": buckets, "items": items, "customers": customers}
+
     def count_records(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]
 

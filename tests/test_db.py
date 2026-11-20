@@ -153,3 +153,34 @@ def test_auto_backup(db, tmp_path):
     assert len(os.listdir(folder)) == 3
     s = backup.safety_backup_before_restore(db, folder)
     assert Database.check_backup_file(s) == 0
+
+
+def test_plate_summary(db):
+    assert db.plate_summary("ABC-1234") is None
+    db.add_record("2026-01-01", "ABC-1234", 1000)
+    db.add_record("2026-03-02", "abc1234", 2000)
+    db.add_record("2026-05-01", "ABC-1234", 500)
+    db.add_record("2026-05-01", "OTHER-1", 999)
+    s = db.plate_summary("abc1234")
+    assert (s["visits"], s["total"], s["first_date"], s["last_date"]) == (3, 3500, "2026-01-01", "2026-05-01")
+    assert s["avg_interval_days"] == 60  # 120 days / 2 gaps
+    single = db.plate_summary("OTHER-1")
+    assert single["visits"] == 1 and single["avg_interval_days"] is None
+
+
+def test_report(db):
+    ids = ids_by_name(db)
+    db.add_record("2026-11-02", "A-1", 1000, [ids["機油"], ids["機油濾芯"]])
+    db.add_record("2026-11-02", "B-2", 500, [ids["機油"]])
+    db.add_record("2026-11-20", "A1", 300, [ids["電瓶"]])
+    db.add_record("2026-12-01", "C-3", 9999, [ids["機油"]])
+    r = db.report("2026-11-01", "2026-11-30", "day")
+    assert (r["visits"], r["total"], r["cars"]) == (3, 1800, 2)
+    assert [(b["period"], b["visits"], b["total"]) for b in r["buckets"]] == [
+        ("2026-11-02", 2, 1500), ("2026-11-20", 1, 300)]
+    assert r["items"][0] == {"name": "機油", "times": 2}
+    assert r["customers"][0]["visits"] == 2 and r["customers"][0]["total"] == 1300
+    y = db.report("2026-01-01", "2026-12-31", "month")
+    assert [(b["period"], b["visits"]) for b in y["buckets"]] == [("2026-11", 3), ("2026-12", 1)]
+    empty = db.report("2025-01-01", "2025-12-31")
+    assert (empty["visits"], empty["total"], empty["buckets"]) == (0, 0, [])
