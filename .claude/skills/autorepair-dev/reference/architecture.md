@@ -68,11 +68,28 @@ idx_records_vehicle ON records(vehicle_id, date, amount)   -- covering: one car'
 - v1 → v2 migration: `_migrate_v1_to_v2` rebuilds tables with foreign keys OFF
   inside one transaction and runs `PRAGMA foreign_key_check` before COMMIT.
 
-## Data location
+## Data location and file names (all Chinese — owner decision)
 
-`config.data_dir()`: `AUTOREPAIR_DATA_DIR` env var → `<exe dir>/autorepair_data`
-if writable → `%LOCALAPPDATA%/AutoRepairDB/autorepair_data`. Auto backups in
-`auto_backup/` (30 daily + 10 before-restore copies). Errors go to `error.log`.
+`config.data_dir()`: `AUTOREPAIR_DATA_DIR` env var → `<exe dir>/汽車保養資料`
+if writable → `%LOCALAPPDATA%/汽車保養資料庫/汽車保養資料`.
+
+| Name (constant in `app/config.py`) | What |
+| --- | --- |
+| `汽車保養資料/` (`DATA_DIRNAME`) | data folder next to the exe |
+| `保養資料.db` (`DB_FILENAME`) | the database |
+| `自動備份/` (`AUTO_BACKUP_DIRNAME`) | `自動備份_YYYYMMDD.db` (30 kept), `還原前備份_YYYYMMDD_HHMMSS.db` (10 kept) |
+| `錯誤紀錄.log` (`LOG_FILENAME`) | unhandled exceptions with timestamps |
+| `使用中.lock` (`LOCK_FILENAME`) | single-instance `QLockFile` |
+| `汽車保養備份_YYYYMMDD_HHMM.db` | default name of a manual backup |
+| `保養紀錄_….pdf`, `每月報表_….pdf` … | default PDF names |
+
+Installs created before the Chinese naming used `autorepair_data/`,
+`autorepair.db`, `auto_backup/auto_*.db`, `before_restore_*.db`, `error.log`,
+`app.lock`, `%LOCALAPPDATA%/AutoRepairDB`. `config._data_dir_in()` and
+`_migrate_legacy_names()` rename them in place on start-up (`LEGACY_*`
+constants). The database and its `-journal` are renamed as a pair; if a rename
+fails (file in use) the old name keeps being used — never start empty.
+Any new file the app creates must get a Chinese name too.
 
 ## UI structure and flow
 

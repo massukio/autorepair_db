@@ -1,10 +1,10 @@
 """Fill a database with about one year of realistic fake records (for testing).
 
 Usage:
-    python tools/make_fake_data.py <path-to-autorepair.db> [--days 365] [--seed 1]
+    python tools/make_fake_data.py <path-to-保養資料.db> [--days 365] [--seed 1]
 
 A safety copy of the database is written next to it first
-(<name>.before_fake_<timestamp>.db), so the fake data can be undone by
+(加入假資料前備份_<timestamp>.db next to it), so the fake data can be undone by
 restoring that file from 「備份 / 還原」.
 """
 import argparse
@@ -75,7 +75,7 @@ def main():
 
     if os.path.exists(args.db):
         stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        safety = f"{os.path.splitext(args.db)[0]}.before_fake_{stamp}.db"
+        safety = os.path.join(os.path.dirname(os.path.abspath(args.db)), f"加入假資料前備份_{stamp}.db")
         shutil.copy2(args.db, safety)
         print("safety copy:", safety)
 

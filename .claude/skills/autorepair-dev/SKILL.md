@@ -19,7 +19,7 @@ task needs, but always do steps 1 and 4.
 - Records: 日期 / 車牌 / 金額 / 保養項目 (+ optional 公里數, 備註). Items are
   user-editable and permanent (soft delete).
 - Pages: 新增紀錄 · 查詢紀錄 · 報表統計 · 備份/還原 · 設定.
-- Data: SQLite in `autorepair_data/` next to the exe; daily auto backup; manual
+- Data: SQLite in `汽車保養資料/` next to the exe; daily auto backup; manual
   backup/restore to a single `.db` file (USB / cloud folder).
 - Stack: Python 3.12, PyQt5 5.15, SQLite (stdlib), PyInstaller 6, Pillow (icon build only).
 

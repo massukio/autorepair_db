@@ -101,3 +101,10 @@ Entry format:
   re-applied after restore; updating a deleted record raised IntegrityError.
 - Rule: after any sizeable change, run an independent review focused on data
   safety and crash paths (not style); verify each finding before fixing.
+
+## 2026-11-20 — Renaming user data files safely
+- Rule: when a data file is renamed (e.g. to Chinese names), rename in place —
+  never copy+delete; move a SQLite database together with its `-journal`; if the
+  rename fails, keep using the old name instead of creating a new empty
+  database; cover it with a test that builds the old layout. Promoted to
+  `reference/architecture.md`.

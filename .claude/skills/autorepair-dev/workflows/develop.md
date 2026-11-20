@@ -21,9 +21,9 @@ python -m pytest -q tests          # data layer; add a test for every db.py chan
 ## Fake data
 
 ```bash
-python tools/make_fake_data.py <path/to/autorepair.db>    # ~1 year, 40 regulars + 160 one-time cars
+python tools/make_fake_data.py <path/to/保養資料.db>    # ~1 year, 40 regulars + 160 one-time cars
 ```
-It copies the DB to `<name>.before_fake_<timestamp>.db` first. Never run it on a
+It copies the DB to `加入假資料前備份_<timestamp>.db` (same folder) first. Never run it on a
 real shop database.
 
 ## Screenshots (the way to "see" the UI)

@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from app import backup
+from app import backup, config
 from app.config import DEFAULT_ITEMS
 from app.db import Database, DataError, normalize_plate, plate_key
 
@@ -143,7 +143,7 @@ def test_auto_backup(db, tmp_path):
     folder = str(tmp_path / "auto")
     for i in range(5):
         open(os.path.join(folder if os.path.isdir(folder) else (os.makedirs(folder) or folder),
-                          f"auto_2000010{i}.db"), "w").close()
+                          f"自動備份_2000010{i}.db"), "w").close()
     p = backup.daily_auto_backup(db, folder, keep=3)
     assert os.path.exists(p)
     files = sorted(os.listdir(folder))
@@ -309,3 +309,39 @@ def test_backup_is_compact_and_valid(db, tmp_path):
     db.backup_to(out)
     assert Database.check_backup_file(out) == 50
     assert os.path.getsize(out) < os.path.getsize(db.path)
+
+
+def test_chinese_names_and_legacy_rename(tmp_path, monkeypatch):
+    # an install that still has the early English names
+    old = tmp_path / "autorepair_data"
+    (old / "auto_backup").mkdir(parents=True)
+    make_v1(str(old / "autorepair.db"))
+    (old / "autorepair.db-journal").write_bytes(b"")  # journal must travel with the db
+    (old / "error.log").write_text("old log")
+    (old / "app.lock").write_text("x")
+    (old / "auto_backup" / "auto_20261101.db").write_bytes(b"x")
+    (old / "auto_backup" / "before_restore_20261101_101010.db").write_bytes(b"x")
+    monkeypatch.delenv("AUTOREPAIR_DATA_DIR", raising=False)
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+
+    assert config.data_dir() == str(tmp_path / "汽車保養資料")
+    new = tmp_path / "汽車保養資料"
+    assert not old.exists()
+    assert config.db_path() == str(new / "保養資料.db")
+    assert (new / "保養資料.db").exists() and (new / "保養資料.db-journal").exists()
+    assert (new / "錯誤紀錄.log").read_text() == "old log"
+    assert not (new / "app.lock").exists()
+    assert sorted(os.listdir(new / "自動備份")) == ["自動備份_20261101.db", "還原前備份_20261101_101010.db"]
+    os.remove(new / "保養資料.db-journal")  # empty test journal; let sqlite open normally
+    d = Database(config.db_path())
+    assert d.count_records() == 3
+    p = backup.daily_auto_backup(d, config.auto_backup_dir())
+    assert os.path.basename(p).startswith("自動備份_")
+    d.close()
+
+
+def test_fresh_install_uses_chinese_names(tmp_path, monkeypatch):
+    monkeypatch.delenv("AUTOREPAIR_DATA_DIR", raising=False)
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    assert config.db_path() == str(tmp_path / "汽車保養資料" / "保養資料.db")
+    assert config.auto_backup_dir() == str(tmp_path / "汽車保養資料" / "自動備份")

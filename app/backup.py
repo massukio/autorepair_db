@@ -7,11 +7,10 @@ import datetime as _dt
 import glob
 import os
 
-from app.config import AUTO_BACKUP_KEEP
+from app.config import AUTO_BACKUP_KEEP, AUTO_BACKUP_PREFIX, BEFORE_RESTORE_PREFIX
 from app.db import Database
 
-AUTO_PREFIX = "auto_"
-BEFORE_RESTORE_PREFIX = "before_restore_"
+AUTO_PREFIX = AUTO_BACKUP_PREFIX
 
 
 def _prune(folder: str, prefix: str, keep: int) -> None:

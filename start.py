@@ -14,7 +14,7 @@ def _log_path() -> str:
     try:
         return os.path.join(config.data_dir(), config.LOG_FILENAME)
     except OSError:
-        return os.path.join(os.path.expanduser("~"), "autorepair_error.log")
+        return os.path.join(os.path.expanduser("~"), f"{config.APP_NAME}_{config.LOG_FILENAME}")
 
 
 def _excepthook(exc_type, exc, tb):
@@ -49,7 +49,7 @@ def main() -> int:
         app.installTranslator(translator)
 
     # one copy at a time: two copies writing the same database would block each other
-    lock = QtCore.QLockFile(os.path.join(config.data_dir(), "app.lock"))
+    lock = QtCore.QLockFile(os.path.join(config.data_dir(), config.LOCK_FILENAME))
     lock.setStaleLockTime(0)  # a lock left by a crash is detected via the dead process id
     if not lock.tryLock(100):
         QtWidgets.QMessageBox.information(

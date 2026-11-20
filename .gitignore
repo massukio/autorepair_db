@@ -5,6 +5,7 @@ venv/
 build/
 dist/
 autorepair_data/
+汽車保養資料/
 *.db
 *.log
 .claude/*

@@ -70,5 +70,5 @@ F5, or rename to confirm).
    spaces; check every page; backup → restore round trip; PDF export opens.
 4. Commit; push only when the owner asks (GitHub over HTTPS if SSH port 22 is
    blocked: `git push https://github.com/massukio/autorepair_db.git main`).
-5. Deliver `dist\汽車保養資料庫.exe`. Users keep the exe and `autorepair_data`
+5. Deliver `dist\汽車保養資料庫.exe`. Users keep the exe and `汽車保養資料`
    folder together; upgrading = replace the exe only.

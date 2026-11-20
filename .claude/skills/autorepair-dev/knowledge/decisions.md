@@ -27,3 +27,7 @@ Format: `YYYY-MM-DD — decision — why / context`
   (owner generated it; source in `assets/icon_source.jpg`).
 - 2026-11-20 — Must not lag on old PCs even with many years of data.
 - 2026-11-20 — Code lives at github.com/massukio/autorepair_db (public).
+- 2026-11-20 — Every folder/file the program creates uses a Chinese name
+  (汽車保養資料/保養資料.db/自動備份/錯誤紀錄.log/使用中.lock; backup and PDF
+  names too). Old English-named installs are renamed automatically. — Users
+  are elderly Chinese readers browsing these folders in Explorer.

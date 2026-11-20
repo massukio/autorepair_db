@@ -68,7 +68,8 @@ def main():
     folder = args.keep or tempfile.mkdtemp()
     os.makedirs(folder, exist_ok=True)
     os.environ["AUTOREPAIR_DATA_DIR"] = folder
-    path = os.path.join(folder, "autorepair.db")
+    from app.config import DB_FILENAME
+    path = os.path.join(folder, DB_FILENAME)
     if os.path.exists(path):
         os.remove(path)
     t = time.perf_counter()
