@@ -486,9 +486,33 @@ class SettingsPage(Page):
         self.items.changed.connect(self.data_changed.emit)
         lay.addWidget(self.items)
 
-        lay.addSpacing(16)
-        lay.addWidget(label(f"{config.APP_NAME}　版本 {config.APP_VERSION}", "hint"))
         lay.addStretch(1)
+
+        side = QtWidgets.QVBoxLayout()
+        side.setContentsMargins(0, 0, 0, 0)
+        side.addSpacing(8)
+        side.addWidget(label("關於本程式", "field"))
+        about = QtWidgets.QLabel(
+            f"{config.APP_NAME}\n"
+            f"版本：{config.APP_VERSION}（{config.APP_RELEASE_DATE}）\n"
+            f"作者：{config.APP_AUTHOR}\n"
+            f"建立年份：{config.APP_CREATED_YEAR}\n"
+            f"授權：{config.APP_LICENSE}\n"
+            f"Copyright © {config.APP_CREATED_YEAR} {config.APP_AUTHOR}\n"
+            f"本程式以 MIT 授權釋出，詳見：\n{config.APP_LICENSE_URL}")
+        about.setProperty("role", "info")
+        about.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        about.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+        about.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        side.addWidget(about)
+        side.addStretch(1)
+
+        outer = QtWidgets.QWidget()
+        cols = QtWidgets.QHBoxLayout(outer)
+        cols.setContentsMargins(0, 0, 20, 0)
+        cols.addWidget(inner, 3)
+        cols.addLayout(side, 2)
+        inner = outer
         v = QtWidgets.QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(scrollable(inner))

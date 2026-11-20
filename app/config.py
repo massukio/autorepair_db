@@ -8,7 +8,12 @@ import os
 import sys
 
 APP_NAME = "汽車保養紀錄"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
+APP_AUTHOR = "Sukio Lin"
+APP_CREATED_YEAR = 2026
+APP_RELEASE_DATE = "2026-11-20"
+APP_LICENSE = "MIT License"
+APP_LICENSE_URL = "https://opensource.org/licenses/MIT"
 
 DB_FILENAME = "autorepair.db"
 DATA_DIRNAME = "autorepair_data"

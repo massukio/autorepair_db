@@ -60,3 +60,7 @@ Set `AUTOREPAIR_DATA_DIR` to use a different data folder (handy for testing).
 Items are soft-deleted (`active=0`) so old records keep their names. Plates are stored upper-case;
 `plate_key` (plate without `-`) is used for matching so `ABC1234` finds `ABC-1234`.
 A backup file is simply a consistent copy of the SQLite database made with SQLite's backup API.
+
+## License
+
+MIT License — Copyright (c) 2026 Sukio Lin. See [LICENSE](LICENSE).
