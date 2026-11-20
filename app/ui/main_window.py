@@ -1,10 +1,9 @@
-from app.ui.style import sized
 from PyQt5 import QtCore, QtWidgets
 
 from app import config
 from app.db import Database
 from app.ui.pages import BackupPage, HistoryPage, NewRecordPage, ReportPage, SettingsPage
-from app.ui.style import base_font_for, build_stylesheet, set_scale
+from app.ui.style import base_font_for, build_stylesheet, set_scale, sized
 from app.ui.widgets import button
 
 
@@ -15,11 +14,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(f"{config.APP_NAME}")
         central = QtWidgets.QWidget()
         root = QtWidgets.QVBoxLayout(central)
-        root.setContentsMargins(12, 12, 12, 8)
-        root.setSpacing(8)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        nav = QtWidgets.QHBoxLayout()
-        nav.setSpacing(12)
+        header = QtWidgets.QFrame()
+        header.setProperty("role", "header")
+        nav = QtWidgets.QHBoxLayout(header)
+        sized(nav, "setContentsMargins", 20, 10, 20, 10)
+        sized(nav, "setSpacing", 6)
+        mark = QtWidgets.QLabel("保")
+        mark.setProperty("role", "brandmark")
+        nav.addWidget(mark)
+        brand = QtWidgets.QLabel(config.APP_NAME)
+        brand.setProperty("role", "brand")
+        nav.addWidget(brand)
+        nav.addSpacing(24)
+
         self.stack = QtWidgets.QStackedWidget()
         self.group = QtWidgets.QButtonGroup(self)
         self.group.setExclusive(True)
@@ -35,18 +45,13 @@ class MainWindow(QtWidgets.QMainWindow):
         for i, (title, page) in enumerate(self.pages):
             b = button(title, "nav")
             b.setCheckable(True)
-            sized(b, "setMinimumWidth", 170)
             self.group.addButton(b, i)
             nav.addWidget(b)
             self.stack.addWidget(page)
             page.data_changed.connect(self._on_data_changed)
         nav.addStretch(1)
         self.group.buttonClicked[int].connect(self.show_page)
-        root.addLayout(nav)
-
-        line = QtWidgets.QFrame()
-        line.setFrameShape(QtWidgets.QFrame.HLine)
-        root.addWidget(line)
+        root.addWidget(header)
         root.addWidget(self.stack, 1)
         self.setCentralWidget(central)
 

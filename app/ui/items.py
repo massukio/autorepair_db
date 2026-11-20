@@ -10,7 +10,7 @@ from PyQt5.QtCore import pyqtSignal
 
 from app.db import Database, DataError
 from app.ui.style import sized
-from app.ui.widgets import ask, ask_text, button, info, label, warn
+from app.ui.widgets import Card, ask, ask_text, button, fit_to_screen, info, label, warn
 
 
 def add_item_flow(parent, db: Database) -> Optional[int]:
@@ -128,10 +128,13 @@ class ItemManagerDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("管理保養項目")
         lay = QtWidgets.QVBoxLayout(self)
-        lay.addWidget(label("管理保養項目", "title"))
+        sized(lay, "setContentsMargins", 20, 16, 20, 16)
+        card = Card("管理保養項目")
         self.manager = ItemManager(db)
-        lay.addWidget(self.manager, 1)
+        card.add(self.manager, 1)
+        lay.addWidget(card, 1)
         row = QtWidgets.QHBoxLayout()
         row.addStretch(1)
         row.addWidget(button("完成", "primary", self.accept))
         lay.addLayout(row)
+        fit_to_screen(self, 760, 640)

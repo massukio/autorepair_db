@@ -3,43 +3,21 @@
 Used both on the 新增紀錄 page and in the 修改紀錄 dialog."""
 from typing import Optional
 
-from app.ui.style import sized
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import pyqtSignal
 
 from app.db import Database, DataError, normalize_plate
 from app.ui.items import ItemManagerDialog, add_item_flow, delete_item_flow, rename_item_flow
-from app.ui.widgets import DatePicker, ItemGrid, button, fmt_date, fmt_money, label
-
-def customer_card_text(db: Database, plate: str, exclude_id: Optional[int] = None) -> str:
-    """Summary of one car: how often it comes, total spent, last visit details."""
-    s = db.plate_summary(plate)
-    if not s:
-        return ""
-    head = f"{s['plate']}　共來過 {s['visits']} 次，總共 {fmt_money(s['total'])}"
-    if s["visits"] > 1 and s["avg_interval_days"]:
-        head += f"，平均約每 {s['avg_interval_days']} 天來一次（第一次 {fmt_date(s['first_date'])}）"
-    lines = [head]
-    last = db.last_record_for_plate(plate, exclude_id=exclude_id)
-    if last:
-        ago = s["days_since_last"] if exclude_id is None else None
-        ago_txt = f"，{ago} 天前" if ago else ("，今天" if ago == 0 else "")
-        km = f"，{last['mileage']:,} 公里" if last.get("mileage") else ""
-        lines.append(f"上次來：{fmt_date(last['date'])}{ago_txt}　金額 {fmt_money(last['amount'])}{km}")
-        done = f"上次做了：{'、'.join(last['item_names']) or '（沒有選項目）'}"
-        if last.get("note"):
-            done += f"　備註：{last['note']}"
-        lines.append(done)
-    return "\n".join(lines)
-
+from app.ui.style import sized
+from app.ui.widgets import DatePicker, ItemGrid, button, label
 
 PLATE_RE = QtCore.QRegExp(r"[A-Za-z0-9\- ]{0,12}")
 
 
 class RecordForm(QtWidgets.QWidget):
-    items_changed = pyqtSignal()   # an item was added from the form
+    items_changed = pyqtSignal()   # an item was added / renamed / deleted from the form
     date_changed = pyqtSignal(str)
-    show_history = pyqtSignal(str)  # user wants all records of this plate
+    plate_changed = pyqtSignal(str)
 
     def __init__(self, db: Database, parent=None, editing_id: Optional[int] = None):
         super().__init__(parent)
@@ -47,83 +25,76 @@ class RecordForm(QtWidgets.QWidget):
         self.editing_id = editing_id
 
         form = QtWidgets.QGridLayout(self)
-        form.setHorizontalSpacing(16)
-        form.setVerticalSpacing(14)
+        form.setContentsMargins(0, 0, 0, 0)
+        sized(form, "setHorizontalSpacing", 18)
+        sized(form, "setVerticalSpacing", 16)
         form.setColumnStretch(1, 1)
-        row = 0
+
+        def key(text):
+            lb = label(text, "field")
+            lb.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+            sized(lb, "setMinimumWidth", 64)
+            return lb
 
         # 日期
-        form.addWidget(label("日期", "field"), row, 0)
+        form.addWidget(key("日期"), 0, 0)
         self.date = DatePicker()
         self.date.changed.connect(self.date_changed.emit)
-        form.addWidget(self.date, row, 1)
-        row += 1
+        form.addWidget(self.date, 0, 1)
 
         # 車牌
-        form.addWidget(label("車牌", "field"), row, 0)
+        form.addWidget(key("車牌"), 1, 0)
         self.plate = QtWidgets.QLineEdit()
         self.plate.setPlaceholderText("例如 ABC-1234")
         self.plate.setValidator(QtGui.QRegExpValidator(PLATE_RE, self.plate))
-        sized(self.plate, "setMaximumWidth", 380)
+        sized(self.plate, "setMaximumWidth", 360)
         self.plate.textEdited.connect(self._upper_plate)
-        self.plate.textChanged.connect(self._update_last_visit)
-        form.addWidget(self.plate, row, 1)
-        row += 1
-        # shown by the parent page (right-hand panel or dialog)
-        self.last_visit = label("", "info")
-        self.last_visit.hide()
-        self.history_btn = button("看這台車的全部紀錄",
-                                  slot=lambda: self.show_history.emit(normalize_plate(self.plate.text())))
-        self.history_btn.hide()
+        self.plate.textChanged.connect(lambda t: self.plate_changed.emit(t))
+        form.addWidget(self.plate, 1, 1)
 
         # 金額
-        form.addWidget(label("金額", "field"), row, 0)
+        form.addWidget(key("金額"), 2, 0)
         amount_row = QtWidgets.QHBoxLayout()
         self.amount = QtWidgets.QLineEdit()
         self.amount.setPlaceholderText("例如 1500")
         self.amount.setValidator(QtGui.QIntValidator(0, 99_999_999, self.amount))
-        sized(self.amount, "setMaximumWidth", 380)
+        sized(self.amount, "setMaximumWidth", 360)
         amount_row.addWidget(self.amount)
-        amount_row.addWidget(label("元"))
+        amount_row.addWidget(label("元", "muted", wrap=False))
         amount_row.addStretch(1)
-        form.addLayout(amount_row, row, 1)
-        row += 1
+        form.addLayout(amount_row, 2, 1)
         self.plate.returnPressed.connect(self.amount.setFocus)
 
         # 項目
-        lb = label("項目", "field")
-        lb.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
-        form.addWidget(lb, row, 0)
-        items_box = QtWidgets.QVBoxLayout()
-        items_box.addWidget(label("點一下選擇（變綠色＝有選），再點一次取消。", "hint"))
+        form.addWidget(key("項目"), 3, 0)
+        items_head = QtWidgets.QHBoxLayout()
+        items_head.addWidget(label("綠色＝已選", "muted", wrap=False))
+        items_head.addStretch(1)
+        items_head.addWidget(button("＋ 新增項目", "link", self._add_item))
+        items_head.addWidget(button("管理項目", "link", self._manage_items))
+        form.addLayout(items_head, 3, 1)
         self.items = ItemGrid()
-        self.items.add_requested.connect(self._add_item)
-        self.items.manage_requested.connect(self._manage_items)
         self.items.rename_requested.connect(self._rename_item)
         self.items.delete_requested.connect(self._delete_item)
-        items_box.addWidget(self.items)
-        form.addLayout(items_box, row, 1)
-        row += 1
+        form.addWidget(self.items, 4, 1)
 
-        # optional
-        form.addWidget(label("公里數"), row, 0)
-        km_row = QtWidgets.QHBoxLayout()
+        # optional: 公里數 + 備註 on one row
+        form.addWidget(key("公里數"), 5, 0)
+        opt = QtWidgets.QHBoxLayout()
+        sized(opt, "setSpacing", 12)
         self.mileage = QtWidgets.QLineEdit()
         self.mileage.setProperty("role", "small")
         self.mileage.setPlaceholderText("可不填")
         self.mileage.setValidator(QtGui.QIntValidator(0, 9_999_999, self.mileage))
-        sized(self.mileage, "setMaximumWidth", 260)
-        km_row.addWidget(self.mileage)
-        km_row.addWidget(label("公里"))
-        km_row.addStretch(1)
-        form.addLayout(km_row, row, 1)
-        row += 1
-
-        form.addWidget(label("備註"), row, 0)
+        sized(self.mileage, "setMaximumWidth", 200)
+        opt.addWidget(self.mileage)
+        opt.addSpacing(10)
+        opt.addWidget(label("備註", "field"))
         self.note = QtWidgets.QLineEdit()
         self.note.setProperty("role", "small")
         self.note.setPlaceholderText("可不填")
-        form.addWidget(self.note, row, 1)
+        opt.addWidget(self.note, 1)
+        form.addLayout(opt, 5, 1)
 
         self.reload_items(keep_selection=False)
 
@@ -134,13 +105,6 @@ class RecordForm(QtWidgets.QWidget):
             pos = self.plate.cursorPosition()
             self.plate.setText(up)
             self.plate.setCursorPosition(pos)
-
-    def _update_last_visit(self, text: str):
-        card = customer_card_text(self.db, text, exclude_id=self.editing_id) \
-            if len(normalize_plate(text)) >= 3 else ""
-        self.last_visit.setText(card)
-        self.last_visit.setVisible(bool(card))
-        self.history_btn.setVisible(bool(card) and self.editing_id is None)
 
     def _after_items_changed(self, select_id=None):
         selected = self.items.selected_ids() + ([select_id] if select_id else [])
@@ -195,7 +159,7 @@ class RecordForm(QtWidgets.QWidget):
         self.amount.setText(str(rec["amount"]))
         self.mileage.setText(str(rec["mileage"]) if rec.get("mileage") is not None else "")
         self.note.setText(rec.get("note") or "")
-        # hidden items that are on this record still need a button while editing
+        # hidden items that are on this record still need a chip while editing
         items = self.db.list_items()
         active = {i["id"] for i in items}
         extra = [{"id": iid, "name": name} for iid, name in zip(rec["item_ids"], rec["item_names"])

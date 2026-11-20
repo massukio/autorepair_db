@@ -1,4 +1,4 @@
-"""Reusable elder-friendly widgets: message boxes, date picker, item grid."""
+"""Reusable elder-friendly widgets: cards, tiles, message boxes, date picker, item grid."""
 from typing import Iterable, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
@@ -9,6 +9,7 @@ from app.ui.style import sized
 WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
+# ------------------------------------------------------------------ basics
 def set_role(widget: QtWidgets.QWidget, role: str) -> QtWidgets.QWidget:
     widget.setProperty("role", role)
     widget.style().unpolish(widget)
@@ -19,7 +20,14 @@ def set_role(widget: QtWidgets.QWidget, role: str) -> QtWidgets.QWidget:
 class WrapLabel(QtWidgets.QLabel):
     """Word-wrapped label that always reserves enough height for all its lines."""
 
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.setWordWrap(True)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+
     def _fit(self):
+        if self.width() <= 0:
+            return
         h = self.heightForWidth(self.width())
         if h > 0 and h != self.minimumHeight():
             self.setMinimumHeight(h)
@@ -38,11 +46,12 @@ class WrapLabel(QtWidgets.QLabel):
             QtCore.QTimer.singleShot(0, self._fit)
 
 
-def label(text: str, role: Optional[str] = None) -> QtWidgets.QLabel:
-    lb = (WrapLabel if role in ("hint", "info") else QtWidgets.QLabel)(text)
+def label(text: str, role: Optional[str] = None, wrap: Optional[bool] = None) -> QtWidgets.QLabel:
+    if wrap is None:
+        wrap = role in ("hint", "muted", "info", "empty")
+    lb = WrapLabel(text) if wrap else QtWidgets.QLabel(text)
     if role:
         lb.setProperty("role", role)
-    lb.setWordWrap(role in ("hint", "info"))
     return lb
 
 
@@ -51,10 +60,103 @@ def button(text: str, role: Optional[str] = None, slot=None) -> QtWidgets.QPushB
     if role:
         b.setProperty("role", role)
     b.setCursor(QtCore.Qt.PointingHandCursor)
-    b.setFocusPolicy(QtCore.Qt.NoFocus if role in ("item", "nav") else QtCore.Qt.StrongFocus)
+    b.setFocusPolicy(QtCore.Qt.NoFocus if role in ("item", "nav", "seg", "link") else QtCore.Qt.StrongFocus)
     if slot is not None:
         b.clicked.connect(slot)
     return b
+
+
+def divider() -> QtWidgets.QFrame:
+    f = QtWidgets.QFrame()
+    f.setProperty("role", "divider")
+    return f
+
+
+class Card(QtWidgets.QFrame):
+    """White rounded panel with an optional title row (title + right-side widgets)."""
+
+    def __init__(self, title: str = "", parent=None, margins: int = 20, spacing: int = 14):
+        super().__init__(parent)
+        self.setProperty("role", "card")
+        self.lay = QtWidgets.QVBoxLayout(self)
+        sized(self.lay, "setContentsMargins", margins, margins - 4, margins, margins - 4)
+        sized(self.lay, "setSpacing", spacing)
+        self.header = QtWidgets.QHBoxLayout()
+        self.header.setSpacing(8)
+        self.title = label(title, "cardtitle")
+        self.header.addWidget(self.title)
+        self.header.addStretch(1)
+        self.lay.addLayout(self.header)
+        if not title:
+            self.title.hide()
+
+    def add_header_widget(self, w: QtWidgets.QWidget):
+        self.header.addWidget(w)
+        return w
+
+    def add(self, w, stretch: int = 0):
+        if isinstance(w, QtWidgets.QLayout):
+            self.lay.addLayout(w, stretch)
+        else:
+            self.lay.addWidget(w, stretch)
+        return w
+
+
+class Tile(QtWidgets.QFrame):
+    """Small stat tile: caption on top, big value below."""
+
+    def __init__(self, caption: str, parent=None):
+        super().__init__(parent)
+        self.setProperty("role", "tile")
+        lay = QtWidgets.QVBoxLayout(self)
+        sized(lay, "setContentsMargins", 14, 10, 14, 10)
+        lay.setSpacing(2)
+        self.caption = label(caption, "tilecap")
+        self.value = label("", "tileval")
+        lay.addWidget(self.caption)
+        lay.addWidget(self.value)
+        lay.addStretch(1)
+
+    def set(self, value: str):
+        self.value.setText(value)
+
+
+class Segmented(QtWidgets.QFrame):
+    """Pill-shaped segmented control. Emits the key of the chosen option."""
+
+    changed = pyqtSignal(str)
+
+    def __init__(self, options, parent=None):
+        super().__init__(parent)
+        self.setProperty("role", "segbar")
+        lay = QtWidgets.QHBoxLayout(self)
+        sized(lay, "setContentsMargins", 4, 4, 4, 4)
+        lay.setSpacing(4)
+        self.group = QtWidgets.QButtonGroup(self)
+        self.buttons = {}
+        for key, text in options:
+            b = button(text, "seg")
+            b.setCheckable(True)
+            b.clicked.connect(lambda _c, k=key: self.changed.emit(k))
+            self.group.addButton(b)
+            self.buttons[key] = b
+            lay.addWidget(b)
+
+    def set_current(self, key: str):
+        for k, b in self.buttons.items():
+            b.setChecked(k == key)
+
+
+def fit_to_screen(dialog: QtWidgets.QWidget, width: int, height: int):
+    """Size a dialog to (width, height) but never larger than the screen it is on."""
+    parent = dialog.parentWidget()
+    screen = (parent.screen() if parent is not None and hasattr(parent, "screen") else None) \
+        or QtWidgets.QApplication.primaryScreen()
+    avail = screen.availableGeometry()
+    w = min(width, int(avail.width() * 0.96))
+    h = min(height, int(avail.height() * 0.92))
+    dialog.resize(w, h)
+    dialog.move(avail.x() + (avail.width() - w) // 2, avail.y() + (avail.height() - h) // 2)
 
 
 def fmt_date(iso: str) -> str:
@@ -77,8 +179,12 @@ def _box(parent, icon, title, text, buttons):
     box.setIcon(icon)
     box.setWindowTitle(title)
     box.setText(text)
-    created = [box.addButton(t, r) for t, r in buttons]
-    box.setDefaultButton(created[0])
+    created = []
+    for t, r in buttons:
+        b = box.addButton(t, r)
+        b.setCursor(QtCore.Qt.PointingHandCursor)
+        created.append(b)
+    box.setDefaultButton(created[-1])
     box.exec_()
     return created.index(box.clickedButton()) if box.clickedButton() in created else -1
 
@@ -103,16 +209,16 @@ def ask_text(parent, title: str, prompt: str, text: str = "") -> Optional[str]:
     dlg = QtWidgets.QDialog(parent)
     dlg.setWindowTitle(title)
     lay = QtWidgets.QVBoxLayout(dlg)
+    sized(lay, "setContentsMargins", 24, 20, 24, 20)
     lay.setSpacing(16)
-    lay.addWidget(label(prompt, "field"))
+    lay.addWidget(label(prompt, "field", wrap=True))
     edit = QtWidgets.QLineEdit(text)
     sized(edit, "setMinimumWidth", 420)
     lay.addWidget(edit)
     row = QtWidgets.QHBoxLayout()
     row.addStretch(1)
     row.addWidget(button("取消", slot=dlg.reject))
-    ok = button("確定", "primary", dlg.accept)
-    row.addWidget(ok)
+    row.addWidget(button("確定", "primary", dlg.accept))
     lay.addLayout(row)
     edit.returnPressed.connect(dlg.accept)
     edit.selectAll()
@@ -127,15 +233,16 @@ class CalendarDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("選擇日期")
         lay = QtWidgets.QVBoxLayout(self)
+        sized(lay, "setContentsMargins", 20, 16, 20, 16)
         self.cal = QtWidgets.QCalendarWidget()
         self.cal.setLocale(QtCore.QLocale(QtCore.QLocale.Chinese, QtCore.QLocale.Taiwan))
-        self.cal.setGridVisible(True)
+        self.cal.setGridVisible(False)
         self.cal.setFirstDayOfWeek(QtCore.Qt.Sunday)
         self.cal.setVerticalHeaderFormat(QtWidgets.QCalendarWidget.NoVerticalHeader)
         self.cal.setSelectedDate(date)
-        sized(self.cal, "setMinimumSize", 560, 420)
+        sized(self.cal, "setMinimumSize", 520, 380)
         self.cal.activated.connect(lambda _d: self.accept())
-        lay.addWidget(self.cal)
+        lay.addWidget(self.cal, 1)
         lay.addWidget(label("點一下日期，再按「確定」。", "hint"))
         row = QtWidgets.QHBoxLayout()
         row.addWidget(button("今天", slot=lambda: self.cal.setSelectedDate(QDate.currentDate())))
@@ -149,7 +256,7 @@ class CalendarDialog(QtWidgets.QDialog):
 
 
 class DatePicker(QtWidgets.QWidget):
-    """[◀ 前一天] [2026/11/20 (五)] [後一天 ▶] [今天]"""
+    """[‹ 前一天] [2026/11/20 (五)] [後一天 ›] [今天]"""
 
     changed = pyqtSignal(str)
 
@@ -158,13 +265,18 @@ class DatePicker(QtWidgets.QWidget):
         self._date = QDate.currentDate()
         lay = QtWidgets.QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(button("◀ 前一天", slot=lambda: self.set_date(self._date.addDays(-1))))
+        lay.setSpacing(8)
+        prev = button("◀", "date", lambda: self.set_date(self._date.addDays(-1)))
+        prev.setToolTip("前一天")
+        lay.addWidget(prev)
         self.btn = button("", "date", self._pick)
         self.btn.setToolTip("點一下可以從月曆選日期")
         lay.addWidget(self.btn)
-        lay.addWidget(button("後一天 ▶", slot=lambda: self.set_date(self._date.addDays(1))))
+        nxt = button("▶", "date", lambda: self.set_date(self._date.addDays(1)))
+        nxt.setToolTip("後一天")
+        lay.addWidget(nxt)
         if show_today:
-            lay.addWidget(button("今天", slot=lambda: self.set_date(QDate.currentDate())))
+            lay.addWidget(button("今天", "link", lambda: self.set_date(QDate.currentDate())))
         lay.addStretch(1)
         self._refresh()
 
@@ -176,7 +288,7 @@ class DatePicker(QtWidgets.QWidget):
     def _refresh(self):
         self.btn.setText(fmt_date(self.iso()))
 
-    def set_date(self, d: QDate):
+    def set_date(self, d):
         if isinstance(d, str):
             d = QDate.fromString(d, "yyyy-MM-dd")
         if not d.isValid() or d == self._date:
@@ -199,7 +311,7 @@ class OptionalDateButton(QtWidgets.QPushButton):
         self._date: Optional[QDate] = None
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.clicked.connect(self._pick)
-        sized(self, "setMinimumWidth", 260)
+        sized(self, "setMinimumWidth", 220)
         self._refresh()
 
     def _pick(self):
@@ -222,10 +334,8 @@ class OptionalDateButton(QtWidgets.QPushButton):
 
 # ------------------------------------------------------------------ item grid
 class ItemGrid(QtWidgets.QWidget):
-    """Big toggle buttons, one per service item, plus a 「＋ 新增項目」 button."""
+    """Big toggle chips, one per service item. Right-click a chip to rename / delete it."""
 
-    add_requested = pyqtSignal()
-    manage_requested = pyqtSignal()
     rename_requested = pyqtSignal(int, str)
     delete_requested = pyqtSignal(int, str)
 
@@ -235,13 +345,8 @@ class ItemGrid(QtWidgets.QWidget):
         self.columns = 3
         self.grid = QtWidgets.QGridLayout(self)
         self.grid.setContentsMargins(0, 0, 0, 0)
-        self.grid.setSpacing(10)
+        sized(self.grid, "setSpacing", 10)
         self.buttons: List[QtWidgets.QPushButton] = []
-        self.add_btn = button("＋ 新增項目", "additem", self.add_requested.emit)
-        self.add_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.manage_btn = button("✎ 管理項目", "additem", self.manage_requested.emit)
-        self.manage_btn.setToolTip("修改名稱、刪除、調整順序")
-        self.manage_btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
 
     def set_items(self, items: Iterable[dict], keep_selection: bool = True):
         selected = set(self.selected_ids()) if keep_selection else set()
@@ -267,8 +372,9 @@ class ItemGrid(QtWidgets.QWidget):
         self._relayout(force=True)
 
     def _best_columns(self) -> int:
-        widgets = self._all()
-        cell = max(w.sizeHint().width() for w in widgets) + self.grid.spacing()
+        if not self.buttons:
+            return self.columns
+        cell = max(w.sizeHint().width() for w in self.buttons) + self.grid.spacing()
         width = self.width() if self.width() > 50 else 700
         return max(2, min(self.max_columns, width // max(cell, 1)))
 
@@ -277,16 +383,13 @@ class ItemGrid(QtWidgets.QWidget):
         if cols == self.columns and not force:
             return
         self.columns = cols
-        for w in self._all():
+        for w in self.buttons:
             self.grid.removeWidget(w)
-        for i, w in enumerate(self._all()):
+        for i, w in enumerate(self.buttons):
             self.grid.addWidget(w, i // cols, i % cols)
             w.show()
         for c in range(self.max_columns):
             self.grid.setColumnStretch(c, 1 if c < cols else 0)
-
-    def _all(self):
-        return self.buttons + [self.add_btn, self.manage_btn]
 
     def _menu(self, btn, pos):
         iid, name = btn.property("item_id"), btn.property("item_name")
@@ -307,7 +410,7 @@ class ItemGrid(QtWidgets.QWidget):
     @staticmethod
     def _decorate(b: QtWidgets.QPushButton):
         name = b.property("item_name")
-        b.setText(f"✔ {name}" if b.isChecked() else name)
+        b.setText(f"✓ {name}" if b.isChecked() else name)
 
     def selected_ids(self) -> List[int]:
         return [b.property("item_id") for b in self.buttons if b.isChecked()]
@@ -321,6 +424,7 @@ class ItemGrid(QtWidgets.QWidget):
         self.set_selected([])
 
 
+# ---------------------------------------------------------------------- tables
 def make_table(headers: List[str]) -> QtWidgets.QTableWidget:
     t = QtWidgets.QTableWidget(0, len(headers))
     t.setHorizontalHeaderLabels(headers)
@@ -328,9 +432,15 @@ def make_table(headers: List[str]) -> QtWidgets.QTableWidget:
     t.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
     t.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
     t.setAlternatingRowColors(True)
+    t.setShowGrid(False)
+    t.setFocusPolicy(QtCore.Qt.NoFocus)
+    t.setFrameShape(QtWidgets.QFrame.NoFrame)
     t.verticalHeader().setVisible(False)
-    sized(t.verticalHeader(), "setDefaultSectionSize", 44)
+    sized(t.verticalHeader(), "setDefaultSectionSize", 46)
+    t.horizontalHeader().setHighlightSections(False)
+    t.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
     t.setWordWrap(True)
+    t.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
     return t
 
 
@@ -338,8 +448,28 @@ def table_item(text: str, data=None, align_right: bool = False) -> QtWidgets.QTa
     it = QtWidgets.QTableWidgetItem(text)
     if data is not None:
         it.setData(QtCore.Qt.UserRole, data)
-    if align_right:
-        it.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-    else:
-        it.setTextAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+    it.setTextAlignment((QtCore.Qt.AlignRight if align_right else QtCore.Qt.AlignLeft)
+                        | QtCore.Qt.AlignVCenter)
     return it
+
+
+def fill_table(table: QtWidgets.QTableWidget, rows, right=(), row_data=None) -> None:
+    """Fill a table in one go. Column auto-sizing is paused while filling,
+    otherwise Qt re-measures whole columns after every cell (very slow)."""
+    hh = table.horizontalHeader()
+    modes = [hh.sectionResizeMode(c) for c in range(table.columnCount())]
+    for c in range(table.columnCount()):
+        hh.setSectionResizeMode(c, QtWidgets.QHeaderView.Fixed)
+    table.setUpdatesEnabled(False)
+    try:
+        table.clearContents()
+        table.setRowCount(len(rows))
+        for r, values in enumerate(rows):
+            for c, v in enumerate(values):
+                data = row_data[r] if (row_data is not None and c == 0) else None
+                table.setItem(r, c, table_item(v, data, align_right=c in right))
+    finally:
+        for c, m in enumerate(modes):
+            hh.setSectionResizeMode(c, m)
+        table.setUpdatesEnabled(True)
+    table.resizeRowsToContents()

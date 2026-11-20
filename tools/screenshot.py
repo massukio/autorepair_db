@@ -31,9 +31,10 @@ def main(out):
             db.add_record(d, random.choice(plates), random.choice([800, 1500, 1800, 2200, 3500]),
                           random.sample(ids, random.randint(1, 3)), random.randint(20, 90) * 1000)
         db.add_record(today.toString("yyyy-MM-dd"), "ABC-1234", 1800, ids[:2], 52000, "下次 57000 公里")
+    plate = db.report("2000-01-01", "2100-01-01")["customers"][0]["plate"]
     win = MainWindow(db)
     win.show()
-    win.new_page.form.plate.setText("ABC-1234")
+    win.new_page.form.plate.setText(plate)
     win.new_page.form.amount.setText("2200")
     win.new_page.form.items.buttons[0].setChecked(True)
     sizes = [(1070, 540), (1280, 760), (1920, 1040), (800, 480)]
@@ -65,7 +66,7 @@ def main(out):
     # PDFs: history (one plate) and monthly report
     from app.ui import pdf
     win.show_page(1)
-    win.history_page.show_plate("ABC-1234")
+    win.history_page.show_plate(plate)
     app.processEvents()
     win.grab().save(os.path.join(out, "history_plate.png"))
     captured = {}
