@@ -196,6 +196,10 @@ def build_stylesheet(base: int) -> str:
     QMessageBox QLabel {{ font-size: {base + 1}pt; }}
     QMessageBox QPushButton {{ min-width: {p(120)}px; }}
 
+    /* disabled must look disabled, whatever the role (placed last so it wins) */
+    QPushButton:disabled, QPushButton[role]:disabled {{
+        background: {SURFACE_ALT}; color: #A9A9A9; border: 1px solid {BORDER};
+    }}
     /* keyboard focus must always be visible (placed last so it wins over role styles) */
     QPushButton:focus, QPushButton[role]:focus {{ border: {p(3)}px solid #D99A00; }}
     QMessageBox QPushButton:default {{ border: {p(3)}px solid #D99A00; }}
