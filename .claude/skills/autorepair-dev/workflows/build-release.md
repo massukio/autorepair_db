@@ -35,7 +35,8 @@ No git there: upload a tarball of the working tree (exclude `.git`, `.claude`,
 caches), `tar -xzf` it, run `build_exe.bat`.
 
 Proven loop (from macOS/Linux with `sshpass`):
-1. `tar --exclude=.git --exclude=.claude --exclude=__pycache__ -czf src.tgz autorepair`
+1. `COPYFILE_DISABLE=1 tar --exclude=.git --exclude=.claude --exclude=__pycache__ -czf src.tgz autorepair`
+   (`COPYFILE_DISABLE=1` stops macOS adding `._*` metadata files)
 2. `scp src.tgz` → `ssh "... tar -xzf src.tgz && cd autorepair && set PATH=...;%PATH% && build_exe.bat > build.log 2>&1"`
    then `findstr "passed FAILED Build OK" build.log`.
 3. Replace the test copy: stop running app processes, copy `dist\*.exe` into the
@@ -50,6 +51,9 @@ Proven loop (from macOS/Linux with `sshpass`):
    the VM. Write PowerShell scripts containing Chinese as **UTF-16LE with BOM**.
 6. Check the embedded exe icon with
    `[System.Drawing.Icon]::ExtractAssociatedIcon($exe)`.
+
+Single-instance check: launching a second copy must only show 「…已經開著了」
+(`QLockFile` in `start.py`); close those test dialogs afterwards.
 
 Gotchas: the SSH server sometimes rejects the password after many quick
 connections — wait and retry; a dropped `scp` means the remote still has the old
