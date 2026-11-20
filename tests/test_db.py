@@ -184,3 +184,128 @@ def test_report(db):
     assert [(b["period"], b["visits"]) for b in y["buckets"]] == [("2026-11", 3), ("2026-12", 1)]
     empty = db.report("2025-01-01", "2025-12-31")
     assert (empty["visits"], empty["total"], empty["buckets"]) == (0, 0, [])
+
+
+def test_search_paging_and_stats(db):
+    for i in range(25):
+        db.add_record(f"2026-01-{i + 1:02d}", "ABC-1234" if i % 2 else "XYZ-9", 100 + i)
+    page1 = db.search_records(limit=10)
+    page2 = db.search_records(limit=10, offset=10)
+    assert len(page1) == 10 and len(page2) == 10
+    assert page1[0]["date"] == "2026-01-25" and page2[0]["date"] == "2026-01-15"
+    assert not {r["id"] for r in page1} & {r["id"] for r in page2}
+    st = db.search_stats()
+    assert (st["count"], st["total"], st["cars"]) == (25, sum(100 + i for i in range(25)), 2)
+    one = db.search_stats("abc1234")
+    assert (one["count"], one["cars"], one["plate"]) == (12, 1, "ABC-1234")
+    assert db.search_stats("nothing")["count"] == 0
+
+
+V1_SCHEMA = """
+CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+                    sort_order INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE records (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, plate TEXT NOT NULL,
+                      plate_key TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, mileage INTEGER,
+                      note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX idx_records_date ON records(date);
+CREATE INDEX idx_records_plate_key ON records(plate_key);
+CREATE TABLE record_items (record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+                           item_id INTEGER NOT NULL REFERENCES items(id), PRIMARY KEY (record_id, item_id));
+INSERT INTO settings VALUES ('schema_version', '1'), ('items_seeded', '1'), ('font_size', '大');
+INSERT INTO items VALUES (1, '機油', 0, 1), (2, '電瓶', 1, 1), (3, '舊項目', 2, 0);
+INSERT INTO records VALUES
+  (1, '2026-01-05', 'ABC1234', 'ABC1234', 1500, 40000, '', '2026-01-05 10:00:00', '2026-01-05 10:00:00'),
+  (2, '2026-03-05', 'ABC-1234', 'ABC1234', 1800, 45000, '下次換電瓶', '2026-03-05 10:00:00', '2026-03-05 10:00:00'),
+  (3, '2026-03-06', 'XYZ-9', 'XYZ9', 3000, NULL, '', '2026-03-06 10:00:00', '2026-03-06 10:00:00');
+INSERT INTO record_items VALUES (1, 1), (2, 1), (2, 3), (3, 2);
+"""
+
+
+def make_v1(path):
+    c = sqlite3.connect(path)
+    c.executescript(V1_SCHEMA)
+    c.commit()
+    c.close()
+
+
+def test_migrates_v1_database(tmp_path):
+    p = str(tmp_path / "v1.db")
+    make_v1(p)
+    db = Database(p)
+    assert db.get_setting("schema_version") == "2"
+    assert db.get_setting("font_size") == "大"
+    assert db.count_records() == 3
+    cols = {r[1] for r in db.conn.execute("PRAGMA table_info(records)")}
+    assert "vehicle_id" in cols and "plate_key" not in cols
+    # both spellings became one car, displayed with the dash
+    assert db.conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0] == 2
+    s = db.plate_summary("abc1234")
+    assert (s["plate"], s["visits"], s["total"]) == ("ABC-1234", 2, 3300)
+    rec = db.get_record(2)
+    assert rec["item_names"] == ["機油", "舊項目"] and rec["note"] == "下次換電瓶"
+    assert rec["created_at"] > 1700000000
+    assert db.conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert db.conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    # the migrated database keeps working
+    db.add_record("2026-04-01", "XYZ9", 100, [2])
+    assert db.plate_summary("XYZ-9")["visits"] == 2
+    db.close()
+    Database(p).close()  # reopening is a no-op
+
+
+def test_restore_old_v1_backup(db, tmp_path):
+    old = str(tmp_path / "old_backup.db")
+    make_v1(old)
+    assert Database.check_backup_file(old) == 3
+    db.add_record("2026-11-01", "NEW-1", 1)
+    db.restore_from(old)
+    assert db.count_records() == 3
+    assert db.plate_summary("ABC-1234")["visits"] == 2
+
+
+def test_vehicle_cleanup_and_plate_change(db):
+    rid = db.add_record("2026-01-01", "AAA-111", 100)
+    db.update_record(rid, "2026-01-01", "BBB-222", 100)
+    plates = [r[0] for r in db.conn.execute("SELECT plate FROM vehicles")]
+    assert plates == ["BBB-222"]
+    db.delete_record(rid)
+    assert db.conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0] == 0
+
+
+def test_review_fixes(db, tmp_path):
+    # amount with thousands separator
+    rid = db.add_record("2026-01-01", "AAA-1", "1,500")
+    assert db.get_record(rid)["amount"] == 1500
+    with pytest.raises(DataError):
+        db.add_record("2026-01-01", "AAA-1", "12a")
+    # updating a deleted record gives a friendly error
+    db.delete_record(rid)
+    with pytest.raises(DataError):
+        db.update_record(rid, "2026-01-01", "AAA-1", 1)
+    # backup onto / restore from the live file is refused
+    with pytest.raises(DataError):
+        db.backup_to(db.path)
+    with pytest.raises(DataError):
+        db.restore_from(db.path)
+    # renaming onto a deleted item's name moves the hidden one aside
+    ids = ids_by_name(db)
+    db.hide_item(ids["燈泡"])
+    db.rename_item(ids["電瓶"], "燈泡")
+    names = {i["name"]: i["active"] for i in db.list_items(include_hidden=True)}
+    assert names["燈泡"] == 1 and names["燈泡（舊1）"] == 0
+    # backup into an unwritable location -> DataError, no .tmp left behind
+    bad = str(tmp_path / "missing_dir" / "x.db")
+    with pytest.raises(DataError):
+        db.backup_to(bad)
+
+
+def test_backup_is_compact_and_valid(db, tmp_path):
+    for i in range(300):
+        db.add_record("2026-01-01", f"CAR-{i}", i, [1], None, "x" * 200)
+    for r in db.search_records()[:250]:
+        db.delete_record(r["id"])
+    out = str(tmp_path / "b.db")
+    db.backup_to(out)
+    assert Database.check_backup_file(out) == 50
+    assert os.path.getsize(out) < os.path.getsize(db.path)

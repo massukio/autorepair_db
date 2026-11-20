@@ -14,6 +14,15 @@ from app.ui.widgets import DatePicker, ItemGrid, button, label
 PLATE_RE = QtCore.QRegExp(r"[A-Za-z0-9\- ]{0,12}")
 
 
+def _int_validator(top: int, parent) -> QtGui.QIntValidator:
+    """Digits only: C locale and no group separators (zh_TW would allow "1,500")."""
+    v = QtGui.QIntValidator(0, top, parent)
+    loc = QtCore.QLocale.c()
+    loc.setNumberOptions(QtCore.QLocale.RejectGroupSeparator)
+    v.setLocale(loc)
+    return v
+
+
 class RecordForm(QtWidgets.QWidget):
     items_changed = pyqtSignal()   # an item was added / renamed / deleted from the form
     date_changed = pyqtSignal(str)
@@ -23,6 +32,7 @@ class RecordForm(QtWidgets.QWidget):
         super().__init__(parent)
         self.db = db
         self.editing_id = editing_id
+        self._extra_items = []  # deleted items still on the record being edited
 
         form = QtWidgets.QGridLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
@@ -57,7 +67,7 @@ class RecordForm(QtWidgets.QWidget):
         amount_row = QtWidgets.QHBoxLayout()
         self.amount = QtWidgets.QLineEdit()
         self.amount.setPlaceholderText("例如 1500")
-        self.amount.setValidator(QtGui.QIntValidator(0, 99_999_999, self.amount))
+        self.amount.setValidator(_int_validator(99_999_999, self.amount))
         sized(self.amount, "setMaximumWidth", 360)
         amount_row.addWidget(self.amount)
         amount_row.addWidget(label("元", "muted", wrap=False))
@@ -85,7 +95,7 @@ class RecordForm(QtWidgets.QWidget):
         self.mileage = QtWidgets.QLineEdit()
         self.mileage.setProperty("role", "small")
         self.mileage.setPlaceholderText("可不填")
-        self.mileage.setValidator(QtGui.QIntValidator(0, 9_999_999, self.mileage))
+        self.mileage.setValidator(_int_validator(9_999_999, self.mileage))
         sized(self.mileage, "setMaximumWidth", 200)
         opt.addWidget(self.mileage)
         opt.addSpacing(10)
@@ -131,7 +141,10 @@ class RecordForm(QtWidgets.QWidget):
         dlg.exec_()
 
     def reload_items(self, keep_selection: bool = True):
-        self.items.set_items(self.db.list_items(), keep_selection=keep_selection)
+        active = self.db.list_items()
+        ids = {i["id"] for i in active}
+        extra = [e for e in self._extra_items if e["id"] not in ids]
+        self.items.set_items(active + extra, keep_selection=keep_selection)
 
     # ---------------------------------------------------------------- public
     def values(self) -> dict:
@@ -142,11 +155,14 @@ class RecordForm(QtWidgets.QWidget):
         if not self.amount.text().strip():
             self.amount.setFocus()
             raise DataError("請輸入金額。")
-        km = self.mileage.text().strip()
+        km = self.mileage.text().replace(",", "").strip()
+        if km and not km.isdigit():
+            self.mileage.setFocus()
+            raise DataError("公里數只能填數字。")
         return {
             "date": self.date.iso(),
             "plate": self.plate.text(),
-            "amount": int(self.amount.text()),
+            "amount": self.amount.text(),  # parsed and checked by the database layer
             "item_ids": self.items.selected_ids(),
             "mileage": int(km) if km else None,
             "note": self.note.text(),
@@ -159,12 +175,12 @@ class RecordForm(QtWidgets.QWidget):
         self.amount.setText(str(rec["amount"]))
         self.mileage.setText(str(rec["mileage"]) if rec.get("mileage") is not None else "")
         self.note.setText(rec.get("note") or "")
-        # hidden items that are on this record still need a chip while editing
-        items = self.db.list_items()
-        active = {i["id"] for i in items}
-        extra = [{"id": iid, "name": name} for iid, name in zip(rec["item_ids"], rec["item_names"])
-                 if iid not in active]
-        self.items.set_items(items + extra, keep_selection=False)
+        # deleted items that are on this record keep a chip while editing,
+        # otherwise saving would silently drop them from the record
+        active = {i["id"] for i in self.db.list_items()}
+        self._extra_items = [{"id": iid, "name": name}
+                             for iid, name in zip(rec["item_ids"], rec["item_names"]) if iid not in active]
+        self.reload_items(keep_selection=False)
         self.items.set_selected(rec["item_ids"])
 
     def clear(self):

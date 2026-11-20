@@ -48,6 +48,15 @@ def main() -> int:
             QtCore.QLibraryInfo.TranslationsPath)):
         app.installTranslator(translator)
 
+    # one copy at a time: two copies writing the same database would block each other
+    lock = QtCore.QLockFile(os.path.join(config.data_dir(), "app.lock"))
+    lock.setStaleLockTime(0)  # a lock left by a crash is detected via the dead process id
+    if not lock.tryLock(100):
+        QtWidgets.QMessageBox.information(
+            None, config.APP_NAME,
+            f"{config.APP_NAME}已經開著了。\n\n請在下方工作列找到它，點一下就可以回到程式。")
+        return 0
+
     try:
         db = Database(config.db_path())
     except Exception as e:  # noqa: BLE001 - show any startup problem to the user

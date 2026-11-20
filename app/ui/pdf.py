@@ -64,14 +64,28 @@ def save_pdf(parent, default_name: str, html_text: str, start_dir: Optional[str]
         return
     if not path.lower().endswith(".pdf"):
         path += ".pdf"
+    tmp = path + ".tmp.pdf"
+    QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
     try:
-        render_pdf(html_text, path)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        render_pdf(html_text, tmp)  # QPrinter fails silently, so check the result
+        if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+            raise OSError("PDF 沒有寫出來")
+        os.replace(tmp, path)
+    except PermissionError:
+        warn(parent, "存檔失敗：同名的 PDF 可能正開著。\n\n請先關閉那個 PDF，或換一個檔名再試一次。")
+        return
     except Exception as e:  # noqa: BLE001 - show any failure to the user
-        warn(parent, f"存檔失敗：{e}")
+        warn(parent, f"存檔失敗：{e}\n\n請換一個位置再試一次。")
         return
-    if not os.path.exists(path):
-        warn(parent, "存檔失敗，請換一個位置再試一次。")
-        return
+    finally:
+        QtWidgets.QApplication.restoreOverrideCursor()
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
     if ask(parent, f"已存成 PDF：\n{path}\n\n要現在打開來看嗎？（可以從那裡列印）", "完成",
            yes="打開來看", no="不用"):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))

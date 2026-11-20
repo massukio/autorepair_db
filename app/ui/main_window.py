@@ -88,20 +88,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show_page(0)
 
     def show_page(self, index: int):
+        """Switch page. Pages always refresh when shown, so they are never stale."""
         self.group.button(index).setChecked(True)
         self.stack.setCurrentIndex(index)
         self.pages[index][1].refresh()
 
     def open_history(self, plate: str):
-        self.show_page(1)
-        self.history_page.show_plate(plate)
+        self.group.button(1).setChecked(True)
+        self.stack.setCurrentIndex(1)
+        self.history_page.show_plate(plate)  # refreshes once, with the plate filled in
 
     def _on_data_changed(self):
-        for _t, page in self.pages:
-            if page is not self.stack.currentWidget():
-                page.refresh()
-        # items may have changed: keep the new-record form in sync too
-        self.new_page.refresh()
+        # Hidden pages refresh themselves when opened (show_page), so nothing
+        # to do for them here; re-querying every page after each save would
+        # be wasted work on large databases. Only a restore changes the page
+        # the user is looking at without it knowing.
+        if self.sender() is self.backup_page:
+            self.apply_font_size(force=True)  # the backup may carry another font size
+            self.stack.currentWidget().refresh()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

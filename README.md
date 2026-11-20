@@ -1,28 +1,29 @@
 # 汽車保養資料庫 (autorepair_db)
 
-給汽車保養廠使用的離線記帳小程式。專為不熟悉電腦的長輩設計：大字、大按鈕、全中文、步驟少。
-A small offline Windows app for an auto-repair shop to record each customer visit.
+給汽車保養廠使用的離線紀錄程式，專為不熟悉電腦的長輩設計：大字、大按鈕、全中文、步驟少，畫面乾淨好讀。
+An offline Windows app for a small auto repair shop to record every customer visit.
 
 - 不需要安裝、不需要網路、不需要伺服器 — 一個 `汽車保養資料庫.exe` 點兩下就能用
 - 紀錄：**日期、車牌、金額、保養項目**（可另外填公里數、備註）
-- 保養項目永久保存，可隨時新增 / 改名 / 排序 / 刪除（在輸入畫面按「管理項目」、在項目按鈕上按右鍵，或到「設定」）；刪除不影響舊紀錄
-- 紀錄可新增、查詢、修改、刪除
-- 輸入車牌時立即顯示這台車：來過幾次、總消費、平均多久來一次、上次日期 / 金額 / 公里數 / 做了哪些項目
-- 查詢紀錄：用車牌（可只打一部分、不用打 `-`）或日期查詢，顯示筆數與合計，可存成 PDF
-- 報表統計：每週 / 每月 / 每年的營業額、台次、車輛數、每日（每月）明細、各項目次數、常客排行，可存成 PDF
+- 保養項目永久保存，可隨時新增 / 改名 / 排序 / 刪除（輸入畫面的「＋ 新增項目」「管理項目」、在項目上按右鍵，或到「設定」）；刪除不影響舊紀錄
+- 輸入車牌時立即顯示「車輛資訊」：來過幾次、累計消費、平均多久來一次、上次保養的日期 / 金額 / 公里數 / 項目
+- 查詢紀錄：用車牌（可只打一部分、不用打 `-`）或日期查詢，顯示筆數與合計；可修改、刪除、存成 PDF
+- 報表統計：每週 / 每月 / 每年的營業額、台次、車輛數、每日（每月）明細、各項目次數、常來的客人，可存成 PDF
 - 畫面與字體會依視窗大小自動縮放，「設定」中可再調整大小
 - 備份：一鍵把全部資料存成一個檔案（可存到隨身碟或雲端硬碟）；換電腦時一鍵還原
-- 每天開啟時自動備份一份到 `autorepair_data\auto_backup\`（保留 30 天）；還原前也會自動先備份目前資料
+- 每天開啟時自動備份到 `autorepair_data\auto_backup\`（保留 30 天）；還原前也會自動先備份目前資料
+- 資料量大也不卡：十年、九萬筆紀錄的資料庫，每個畫面都在 0.1 秒內開好
 
 ## 使用方式（給店家）
 
 1. 把 `汽車保養資料庫.exe` 放到一個資料夾裡（例如桌面上的「保養紀錄」資料夾），點兩下開啟。
 2. 第一次開啟會在 exe 旁邊建立 `autorepair_data` 資料夾，**所有資料都在這裡**。
    搬家時把整個資料夾（exe + `autorepair_data`）一起複製即可。
-3. 換新電腦：把 exe 複製到新電腦 → 開啟 →「備份 / 還原」→「從備份檔還原」→ 選擇之前的備份檔。
+3. 換新電腦：把 exe 複製到新電腦 → 開啟 →「備份 / 還原」→「選擇備份檔並還原」→ 選擇之前的備份檔。
+4. 更新程式：只要用新的 exe 取代舊的 exe，資料會自動沿用（舊格式的資料與備份檔會自動升級）。
 
 > 若 exe 放在沒有寫入權限的位置（例如 `C:\Program Files`），資料會改存到 `%LOCALAPPDATA%\AutoRepairDB\autorepair_data`。
-> 「備份 / 還原」頁面會顯示目前資料實際存放的位置。
+> 「備份 / 還原」頁面會顯示目前資料實際存放的位置。程式同時只能開一個。
 
 ## 開發 (Development)
 
@@ -30,36 +31,31 @@ Python 3.12 + PyQt5 + SQLite（Python 內建），PyInstaller 打包成單一 ex
 
 ```bat
 python -m pip install -r requirements.txt
-python start.py               :: run from source
-python -m pytest -q tests     :: data-layer tests
-build_exe.bat                 :: tests + icon + build -> dist\汽車保養資料庫.exe
+python start.py                            :: run from source (set AUTOREPAIR_DATA_DIR to use test data)
+python -m pytest -q tests                  :: data-layer tests
+build_exe.bat                              :: tests + icon + build -> dist\汽車保養資料庫.exe
 ```
 
-Set `AUTOREPAIR_DATA_DIR` to use a different data folder (handy for testing).
-`tools/screenshot.py` renders every page to PNG (works with `QT_QPA_PLATFORM=offscreen`).
+Tools: `tools/screenshot.py` (render every page offscreen), `tools/make_fake_data.py`
+(one year of realistic test data), `tools/bench.py` (large-database benchmark),
+`tools/make_icon.py` (builds `app.ico` from `assets/icon_source.jpg`).
 
-### Project layout
+### For maintainers (human or AI)
 
-| Path | What |
-| --- | --- |
-| `start.py` | entry point: Qt setup, error log, open DB, daily auto backup |
-| `app/config.py` | constants, default items, data-folder location logic |
-| `app/db.py` | SQLite schema + all data operations, backup / restore |
-| `app/backup.py` | daily auto backup and before-restore safety copies |
-| `app/ui/main_window.py` | top navigation + page stack, font size |
-| `app/ui/pages.py` | 新增紀錄 / 查詢紀錄 / 報表統計 / 備份還原 / 設定 pages, edit dialog |
-| `app/ui/items.py` | item add / rename / delete / reorder flows and manager dialog |
-| `app/ui/pdf.py` | HTML → A4 PDF export |
-| `app/ui/record_form.py` | shared entry form (date / plate / amount / items ...) |
-| `app/ui/widgets.py` | big buttons, Chinese message boxes, date picker, item grid |
-| `app/ui/style.py` | stylesheet + window-size based UI scaling (`sized()` for fixed pixel sizes) |
+The full maintainer guide — architecture, data model, design system, workflows
+for features / bug fixes / schema changes / performance / Windows builds, owner
+decisions and the experience log — lives in the project skill
+[`.claude/skills/autorepair-dev/SKILL.md`](.claude/skills/autorepair-dev/SKILL.md).
+Start there; it routes to everything else and ends every task with a
+retrospective that keeps the guide current.
 
-### Data model
+### Data model (schema v2)
 
-`records` (date, plate, amount, mileage, note) ↔ `record_items` ↔ `items` (name, order, active).
-Items are soft-deleted (`active=0`) so old records keep their names. Plates are stored upper-case;
-`plate_key` (plate without `-`) is used for matching so `ABC1234` finds `ABC-1234`.
-A backup file is simply a consistent copy of the SQLite database made with SQLite's backup API.
+`vehicles(plate_key UNIQUE, plate)` ← `records(vehicle_id, date, amount, mileage, note, …)`
+↔ `record_items` (WITHOUT ROWID) ↔ `items(name, sort_order, active)`; `settings(key, value)`.
+Covering indexes `records(date, vehicle_id, amount)` and `records(vehicle_id, date, amount)`
+serve listings, reports and per-car statistics from the index alone. Older databases and
+backup files are migrated automatically on open / restore.
 
 ## License
 

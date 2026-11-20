@@ -143,8 +143,11 @@ class Segmented(QtWidgets.QFrame):
             lay.addWidget(b)
 
     def set_current(self, key: str):
+        """Highlight one option; an unknown key (e.g. "") clears the highlight."""
+        self.group.setExclusive(False)  # exclusive groups refuse to uncheck the last button
         for k, b in self.buttons.items():
             b.setChecked(k == key)
+        self.group.setExclusive(True)
 
 
 def fit_to_screen(dialog: QtWidgets.QWidget, width: int, height: int):
@@ -263,27 +266,38 @@ class DatePicker(QtWidgets.QWidget):
     def __init__(self, parent=None, show_today: bool = True):
         super().__init__(parent)
         self._date = QDate.currentDate()
+        self.follows_today = True  # False once the user picks another day
         lay = QtWidgets.QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        prev = button("◀", "date", lambda: self.set_date(self._date.addDays(-1)))
+        prev = button("◀", "date", lambda: self.pick(self._date.addDays(-1)))
         prev.setToolTip("前一天")
         lay.addWidget(prev)
         self.btn = button("", "date", self._pick)
         self.btn.setToolTip("點一下可以從月曆選日期")
         lay.addWidget(self.btn)
-        nxt = button("▶", "date", lambda: self.set_date(self._date.addDays(1)))
+        nxt = button("▶", "date", lambda: self.pick(self._date.addDays(1)))
         nxt.setToolTip("後一天")
         lay.addWidget(nxt)
         if show_today:
-            lay.addWidget(button("今天", "link", lambda: self.set_date(QDate.currentDate())))
+            lay.addWidget(button("今天", "link", lambda: self.pick(QDate.currentDate())))
         lay.addStretch(1)
         self._refresh()
 
     def _pick(self):
         dlg = CalendarDialog(self, self._date)
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
-            self.set_date(dlg.selected())
+            self.pick(dlg.selected())
+
+    def pick(self, d: QDate):
+        """A date chosen by the user."""
+        self.follows_today = d == QDate.currentDate()
+        self.set_date(d)
+
+    def roll_to_today(self):
+        """Called periodically: keep showing today across midnight unless the user chose a day."""
+        if self.follows_today and self._date != QDate.currentDate():
+            self.set_date(QDate.currentDate())
 
     def _refresh(self):
         self.btn.setText(fmt_date(self.iso()))

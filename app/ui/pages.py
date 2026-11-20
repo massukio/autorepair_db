@@ -13,7 +13,7 @@ from app.ui.items import ItemManager
 from app.ui.record_form import RecordForm
 from app.ui.style import sized
 from app.ui.widgets import (Card, OptionalDateButton, Segmented, Tile, ask, button, fit_to_screen,
-                            fill_table, fmt_date, fmt_money, info, label, make_table, warn)
+                            fill_table, fmt_date, fmt_money, info, label, make_table, table_item, warn)
 
 
 def documents_dir() -> str:
@@ -84,7 +84,11 @@ class NewRecordPage(Page):
         sized(sl, "setSpacing", 16)
         self.customer = CustomerCard(db)
         self.customer.show_history.connect(self.open_history.emit)
-        self.form.plate_changed.connect(lambda t: self.customer.set_plate(t))
+        self._card_timer = QtCore.QTimer(self)
+        self._card_timer.setSingleShot(True)
+        self._card_timer.setInterval(250)  # update the card once typing pauses
+        self._card_timer.timeout.connect(lambda: self.customer.set_plate(self.form.plate.text()))
+        self.form.plate_changed.connect(lambda _t: self._card_timer.start())
         sl.addWidget(self.customer)
         day_card = Card("今天的紀錄")
         self.day_title = day_card.title
@@ -101,9 +105,14 @@ class NewRecordPage(Page):
         outer.addWidget(scrollable(side), 8)
 
         QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+S"), self, self._save)
+        self._clock = QtCore.QTimer(self)  # app may stay open overnight
+        self._clock.setInterval(60_000)
+        self._clock.timeout.connect(self.form.date.roll_to_today)
+        self._clock.start()
         self.refresh_day()
 
     def refresh(self):
+        self.form.date.roll_to_today()
         self.form.reload_items(keep_selection=True)
         self.customer.set_plate(self.form.plate.text())
         self.refresh_day()
@@ -178,6 +187,8 @@ class EditRecordDialog(QtWidgets.QDialog):
 # =================================================================== 查詢紀錄
 class HistoryPage(Page):
     HEADERS = ["日期", "車牌", "金額", "項目", "公里數", "備註"]
+    PAGE_SIZE = 200          # rows loaded at a time (keeps old PCs fast)
+    PDF_WARN_ROWS = 3000     # PDFs bigger than this take long to make
 
     def __init__(self, db, parent=None):
         super().__init__(db, parent)
@@ -197,7 +208,12 @@ class HistoryPage(Page):
         self.plate.setPlaceholderText("可只打一部分")
         sized(self.plate, "setMaximumWidth", 300)
         self.plate.textEdited.connect(self._upper)
-        self.plate.textChanged.connect(lambda _t: self.refresh())
+        # wait until the user stops typing before searching
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(self.refresh)
+        self.plate.textChanged.connect(lambda _t: self._search_timer.start())
         row.addWidget(self.plate, 1)
         row.addSpacing(16)
         row.addWidget(label("日期", "field"))
@@ -242,6 +258,13 @@ class HistoryPage(Page):
         self.table.doubleClicked.connect(lambda _i: self._edit())
         sized(self.table, "setMinimumHeight", 300)
         results.add(self.table, 1)
+        more_row = QtWidgets.QHBoxLayout()
+        self.shown_label = label("", "muted", wrap=False)
+        more_row.addWidget(self.shown_label)
+        more_row.addStretch(1)
+        self.more_btn = button("顯示更多", slot=self._load_more)
+        more_row.addWidget(self.more_btn)
+        results.add(more_row)
         results.add(label("先點一下表格中的一行，再按「修改」或「刪除」。點兩下也可以直接修改。", "hint"))
         lay.addWidget(results, 1)
         self.range_seg.set_current("all")
@@ -290,19 +313,50 @@ class HistoryPage(Page):
         self.plate.blockSignals(False)
         self.refresh()
 
+    def _filters(self):
+        return self.plate.text(), self.d_from.iso(), self.d_to.iso()
+
+    @staticmethod
+    def _row(rec):
+        return (fmt_date(rec["date"]), rec["plate"], fmt_money(rec["amount"]), "、".join(rec["item_names"]),
+                f"{rec['mileage']:,}" if rec.get("mileage") is not None else "", rec.get("note") or "")
+
     def refresh(self):
-        self.records = self.db.search_records(self.plate.text(), self.d_from.iso(), self.d_to.iso())
-        fill_table(self.table, [
-            (fmt_date(rec["date"]), rec["plate"], fmt_money(rec["amount"]), "、".join(rec["item_names"]),
-             f"{rec['mileage']:,}" if rec.get("mileage") is not None else "", rec.get("note") or "")
-            for rec in self.records], right=(2, 4), row_data=[rec["id"] for rec in self.records])
-        total = sum(r["amount"] for r in self.records)
-        self.total.setText(f"共 {len(self.records)} 筆　合計 {fmt_money(total)}")
-        keys = {r["plate_key"] for r in self.records}
-        if self.plate.text().strip() and len(keys) == 1:
-            self.customer.set_plate(self.records[0]["plate"])
+        self._search_timer.stop()
+        self.stats = self.db.search_stats(*self._filters())
+        self.records = self.db.search_records(*self._filters(), limit=self.PAGE_SIZE)
+        fill_table(self.table, [self._row(r) for r in self.records], right=(2, 4),
+                   row_data=[r["id"] for r in self.records])
+        self.table.scrollToTop()
+        self._update_counts()
+        if self.plate.text().strip() and self.stats["cars"] == 1:
+            self.customer.set_plate(self.stats["plate"])
         else:
             self.customer.hide()
+
+    def _load_more(self):
+        more = self.db.search_records(*self._filters(), limit=self.PAGE_SIZE, offset=len(self.records))
+        if not more:
+            return
+        start = len(self.records)
+        self.records += more
+        t = self.table
+        t.setUpdatesEnabled(False)
+        t.setRowCount(len(self.records))
+        for i, rec in enumerate(more):
+            for c, v in enumerate(self._row(rec)):
+                t.setItem(start + i, c, table_item(v, rec["id"] if c == 0 else None, align_right=c in (2, 4)))
+            t.resizeRowToContents(start + i)
+        t.setUpdatesEnabled(True)
+        self._update_counts()
+
+    def _update_counts(self):
+        st = self.stats
+        self.total.setText(f"共 {st['count']:,} 筆　合計 {fmt_money(st['total'])}")
+        shown = len(self.records)
+        self.more_btn.setVisible(shown < st["count"])
+        self.more_btn.setText(f"顯示更多（再 {min(self.PAGE_SIZE, st['count'] - shown)} 筆）")
+        self.shown_label.setText(f"目前顯示最新的 {shown:,} 筆" if shown < st["count"] else "")
 
     def _selected(self):
         row = self.table.currentRow()
@@ -340,6 +394,16 @@ class HistoryPage(Page):
         if not self.records:
             warn(self, "目前沒有資料可以存成 PDF。")
             return
+        if self.stats["count"] > self.PDF_WARN_ROWS and not ask(
+                self, f"目前條件共有 {self.stats['count']:,} 筆紀錄，做成 PDF 會很多頁，也要等比較久。\n\n"
+                      f"建議先選擇日期範圍或輸入車牌，縮小範圍。\n\n還是要全部存成 PDF 嗎？",
+                yes="全部存成 PDF", no="先不要"):
+            return
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            all_records = self.db.search_records(*self._filters())
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
         plate = self.plate.text().strip()
         cond = []
         if plate:
@@ -347,15 +411,12 @@ class HistoryPage(Page):
         cond.append(f"日期：{fmt_date(self.d_from.iso()) if self.d_from.iso() else '不限'} ～ "
                     f"{fmt_date(self.d_to.iso()) if self.d_to.iso() else '不限'}")
         lines = ["　".join(cond), self.total.text()]
-        keys = {r["plate_key"] for r in self.records}
-        if plate and len(keys) == 1:
-            s = self.db.plate_summary(self.records[0]["plate"])
+        if plate and self.stats["cars"] == 1:
+            s = self.db.plate_summary(self.stats["plate"])
             if s:
                 every = f"，平均約每 {s['avg_interval_days']} 天來一次" if s["avg_interval_days"] else ""
                 lines.append(f"{s['plate']} 共來過 {s['visits']} 次，累計 {fmt_money(s['total'])}{every}")
-        rows = [(fmt_date(r["date"]), r["plate"], fmt_money(r["amount"]), "、".join(r["item_names"]),
-                 f"{r['mileage']:,}" if r.get("mileage") is not None else "", r.get("note") or "")
-                for r in self.records]
+        rows = [self._row(r) for r in all_records]
         doc = pdf.document_html("保養紀錄", lines, ["<br>", pdf.table_html(self.HEADERS, rows, right=(2, 4))])
         name = f"保養紀錄_{plate + '_' if plate else ''}{_dt.date.today():%Y%m%d}.pdf"
         pdf.save_pdf(self, name, doc)
@@ -369,6 +430,7 @@ class ReportPage(Page):
         super().__init__(db, parent)
         self.mode = "month"
         self.anchor = QDate.currentDate()
+        self.follows_today = True  # False after 上一期/下一期
         inner = QtWidgets.QWidget()
         lay = page_layout(inner)
         v = QtWidgets.QVBoxLayout(self)
@@ -454,6 +516,7 @@ class ReportPage(Page):
         self.now_btn.setText(f"回到{word[1]}")
 
     def _step(self, n):
+        self.follows_today = False
         if self.mode == "week":
             self.anchor = self.anchor.addDays(7 * n)
         elif self.mode == "month":
@@ -464,9 +527,12 @@ class ReportPage(Page):
 
     def _now(self):
         self.anchor = QDate.currentDate()
+        self.follows_today = True
         self.refresh()
 
     def refresh(self):
+        if self.follows_today:
+            self.anchor = QDate.currentDate()
         start, end = self._range()
         if self.mode == "week":
             self.period.setText(f"{start.toString('yyyy/MM/dd')} ～ {end.toString('MM/dd')}")
