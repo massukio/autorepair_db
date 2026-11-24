@@ -570,6 +570,8 @@ def _uri_path(path: str) -> str:
     """Absolute path usable in a sqlite file: URI (handles spaces, #, ? and Windows drives)."""
     from urllib.parse import quote
     p = os.path.abspath(path).replace("\\", "/")
-    if not p.startswith("/"):
+    if p.startswith("//"):
+        p = "//" + p  # network path //server/share/x -> file:////server/share/x
+    elif not p.startswith("/"):
         p = "/" + p  # C:/x -> /C:/x
     return quote(p, safe="/:")

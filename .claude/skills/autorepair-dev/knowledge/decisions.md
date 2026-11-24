@@ -32,3 +32,4 @@ Format: `YYYY-MM-DD — decision — why / context`
   names too). Old English-named installs are renamed automatically. — Users
   are elderly Chinese readers browsing these folders in Explorer.
 - 2026-11-20 — 1.0.1: visible selection/focus, safe default on confirmations, no hidden Enter clicks, hourly auto-backup check.
+- 2026-11-24 — 1.0.2 released (review fixes: edit keeps items, faster 顯示更多, overnight ranges, restore/backup edge cases).

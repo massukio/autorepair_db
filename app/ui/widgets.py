@@ -469,23 +469,31 @@ def table_item(text: str, data=None, align_right: bool = False) -> QtWidgets.QTa
     return it
 
 
-def fill_table(table: QtWidgets.QTableWidget, rows, right=(), row_data=None) -> None:
-    """Fill a table in one go. Column auto-sizing is paused while filling,
-    otherwise Qt re-measures whole columns after every cell (very slow)."""
+def fill_table(table: QtWidgets.QTableWidget, rows, right=(), row_data=None, append: bool = False) -> None:
+    """Fill a table in one go (or add rows at the end with append=True).
+    Column auto-sizing is paused while filling, otherwise Qt re-measures whole
+    columns after every cell (very slow)."""
+    rows = list(rows)
     hh = table.horizontalHeader()
     modes = [hh.sectionResizeMode(c) for c in range(table.columnCount())]
     for c in range(table.columnCount()):
         hh.setSectionResizeMode(c, QtWidgets.QHeaderView.Fixed)
     table.setUpdatesEnabled(False)
+    start = table.rowCount() if append else 0
     try:
-        table.clearContents()
-        table.setRowCount(len(rows))
+        if not append:
+            table.clearContents()
+        table.setRowCount(start + len(rows))
         for r, values in enumerate(rows):
             for c, v in enumerate(values):
                 data = row_data[r] if (row_data is not None and c == 0) else None
-                table.setItem(r, c, table_item(v, data, align_right=c in right))
+                table.setItem(start + r, c, table_item(v, data, align_right=c in right))
+        if append:
+            for r in range(start, start + len(rows)):
+                table.resizeRowToContents(r)
     finally:
         for c, m in enumerate(modes):
             hh.setSectionResizeMode(c, m)
         table.setUpdatesEnabled(True)
-    table.resizeRowsToContents()
+    if not append:
+        table.resizeRowsToContents()

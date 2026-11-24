@@ -2,6 +2,7 @@
 import datetime as _dt
 import html
 import os
+import re
 from typing import Iterable, List, Optional, Sequence
 
 from PyQt5 import QtCore, QtGui, QtPrintSupport, QtWidgets
@@ -54,16 +55,25 @@ def render_pdf(html_text: str, path: str) -> None:
     doc.print_(printer)
 
 
+def safe_filename(name: str) -> str:
+    """Remove characters Windows does not allow in file names."""
+    return re.sub(r'[\\/:*?"<>|]', "", name).strip() or "報表"
+
+
 def save_pdf(parent, default_name: str, html_text: str, start_dir: Optional[str] = None) -> None:
     """Ask where to save, write the PDF, then offer to open it."""
     start_dir = start_dir or QtCore.QStandardPaths.writableLocation(
         QtCore.QStandardPaths.DocumentsLocation) or os.path.expanduser("~")
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
-        parent, "存成 PDF", os.path.join(start_dir, default_name), "PDF 檔 (*.pdf)")
+        parent, "存成 PDF", os.path.join(start_dir, safe_filename(default_name)), "PDF 檔 (*.pdf)")
     if not path:
         return
     if not path.lower().endswith(".pdf"):
-        path += ".pdf"
+        path += ".pdf"  # the save dialog's overwrite question did not see this name
+        if os.path.exists(path) and not ask(
+                parent, f"這個位置已經有同名的 PDF：\n{path}\n\n要用新的取代它嗎？", "取代檔案",
+                yes="取代", no="不要取代"):
+            return
     tmp = path + ".tmp.pdf"
     QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
     try:

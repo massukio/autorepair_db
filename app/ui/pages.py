@@ -13,7 +13,7 @@ from app.ui.items import ItemManager
 from app.ui.record_form import RecordForm
 from app.ui.style import sized
 from app.ui.widgets import (Card, OptionalDateButton, Segmented, Tile, ask, button, fit_to_screen,
-                            fill_table, fmt_date, fmt_money, info, label, make_table, table_item, warn)
+                            fill_table, fmt_date, fmt_money, info, label, make_table, warn)
 
 
 def documents_dir() -> str:
@@ -267,6 +267,7 @@ class HistoryPage(Page):
         results.add(more_row)
         results.add(label("先點一下表格中的一行，再按「修改」或「刪除」。點兩下也可以直接修改。", "hint"))
         lay.addWidget(results, 1)
+        self.range_key = "all"
         self.range_seg.set_current("all")
         self.records = []
 
@@ -276,26 +277,33 @@ class HistoryPage(Page):
             self.plate.setText(t.upper())
             self.plate.setCursorPosition(pos)
 
-    def _set_range(self, a, b):
+    def _apply_range_key(self):
+        """Set the dates for the chosen quick range from today's date, so 「今天」
+        still means today when the program stays open past midnight."""
+        key = self.range_key
+        if not key:
+            return  # dates picked by hand: keep them
+        t = QDate.currentDate()
+        if key == "today":
+            a, b = t, t
+        elif key == "month":
+            a, b = QDate(t.year(), t.month(), 1), QDate(t.year(), t.month(), t.daysInMonth())
+        elif key == "year":
+            a, b = QDate(t.year(), 1, 1), QDate(t.year(), 12, 31)
+        else:
+            a = b = None
         self.d_from.set_date(a, emit=False)
         self.d_to.set_date(b, emit=False)
-        self.refresh()
 
     def _manual_date(self):
+        self.range_key = ""
         self.range_seg.set_current("")
         self.refresh()
 
     def _quick_range(self, key):
+        self.range_key = key
         self.range_seg.set_current(key)
-        t = QDate.currentDate()
-        if key == "today":
-            self._set_range(t, t)
-        elif key == "month":
-            self._set_range(QDate(t.year(), t.month(), 1), QDate(t.year(), t.month(), t.daysInMonth()))
-        elif key == "year":
-            self._set_range(QDate(t.year(), 1, 1), QDate(t.year(), 12, 31))
-        else:
-            self._set_range(None, None)
+        self.refresh()
 
     def _reset(self):
         self.plate.blockSignals(True)
@@ -305,9 +313,8 @@ class HistoryPage(Page):
 
     def show_plate(self, plate: str):
         """Jump here from another page with a plate filled in and all dates."""
+        self.range_key = "all"
         self.range_seg.set_current("all")
-        self.d_from.set_date(None, emit=False)
-        self.d_to.set_date(None, emit=False)
         self.plate.blockSignals(True)
         self.plate.setText(plate)
         self.plate.blockSignals(False)
@@ -323,7 +330,8 @@ class HistoryPage(Page):
 
     def refresh(self):
         self._search_timer.stop()
-        self.stats = self.db.search_stats(*self._filters())
+        self._apply_range_key()
+        self.stats =self.db.search_stats(*self._filters())
         self.records = self.db.search_records(*self._filters(), limit=self.PAGE_SIZE)
         fill_table(self.table, [self._row(r) for r in self.records], right=(2, 4),
                    row_data=[r["id"] for r in self.records])
@@ -338,16 +346,9 @@ class HistoryPage(Page):
         more = self.db.search_records(*self._filters(), limit=self.PAGE_SIZE, offset=len(self.records))
         if not more:
             return
-        start = len(self.records)
         self.records += more
-        t = self.table
-        t.setUpdatesEnabled(False)
-        t.setRowCount(len(self.records))
-        for i, rec in enumerate(more):
-            for c, v in enumerate(self._row(rec)):
-                t.setItem(start + i, c, table_item(v, rec["id"] if c == 0 else None, align_right=c in (2, 4)))
-            t.resizeRowToContents(start + i)
-        t.setUpdatesEnabled(True)
+        fill_table(self.table, [self._row(r) for r in more], right=(2, 4),
+                   row_data=[r["id"] for r in more], append=True)
         self._update_counts()
 
     def _update_counts(self):
@@ -652,7 +653,11 @@ class BackupPage(Page):
         if not path:
             return
         if not path.lower().endswith(".db"):
-            path += ".db"
+            path += ".db"  # the save dialog's overwrite question did not see this name
+            if os.path.exists(path) and not ask(
+                    self, f"這個位置已經有同名的備份檔：\n{path}\n\n要用新的備份取代它嗎？",
+                    "取代備份檔", yes="取代", no="不要取代"):
+                return
         try:
             self.db.backup_to(path)
             Database.check_backup_file(path)
@@ -684,9 +689,22 @@ class BackupPage(Page):
             return
         try:
             safety = backup.safety_backup_before_restore(self.db, config.auto_backup_dir())
+        except (OSError, DataError) as e:
+            warn(self, f"還原失敗！目前的資料沒有被改變。\n\n{e}")
+            return
+        try:
             self.db.restore_from(path)
         except (OSError, DataError) as e:
-            warn(self, f"還原失敗！\n\n{e}")
+            # the copy may have stopped half way (e.g. an old backup that could
+            # not be upgraded): put the data from just before back
+            try:
+                self.db.restore_from(safety)
+                back = "目前的資料已經恢復成還原前的樣子。"
+            except (OSError, DataError):
+                back = f"請關閉程式再重新打開。還原前的資料存在：\n{safety}"
+            self.refresh()
+            self.restored.emit()
+            warn(self, f"還原失敗！{back}\n\n{e}")
             return
         self.refresh()
         self.restored.emit()

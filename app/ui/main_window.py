@@ -105,6 +105,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # the user is looking at without it knowing.
         if self.sender() is self.backup_page:
             self.apply_font_size(force=True)  # the backup may carry another font size
+            # item ids in the restored data can mean other items: drop chosen chips
+            self.new_page.form.reload_items(keep_selection=False)
             self.stack.currentWidget().refresh()
 
     def resizeEvent(self, event):

@@ -29,6 +29,8 @@ tools/screenshot.py      renders every page at several window sizes + sample PDF
 tools/make_fake_data.py  ~1 year of realistic fake records (makes a safety copy first)
 tools/bench.py           large-database performance benchmark
 tests/test_db.py         data-layer tests (pytest)
+tests/test_ui.py         UI logic tests, offscreen Qt (skipped without PyQt5)
+tests/conftest.py        turns exceptions inside Qt slots into test failures
 autorepair.spec          PyInstaller onefile spec (exe name, icon, bundled assets, excludes)
 build_exe.bat            Windows: pip install -> tests -> icon -> PyInstaller (CRLF, ASCII only)
 ```

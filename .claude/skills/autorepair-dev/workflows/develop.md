@@ -15,7 +15,8 @@ AUTOREPAIR_DATA_DIR=/tmp/ar_data python start.py      # never point at real user
 ## Test
 
 ```bash
-python -m pytest -q tests          # data layer; add a test for every db.py change
+python -m pytest -q tests          # data layer + UI logic; add a test for every db.py change
+                                   # test_ui.py is SKIPPED if PyQt5 is missing - run it in the venv
 ```
 
 ## Fake data

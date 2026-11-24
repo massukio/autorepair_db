@@ -345,3 +345,18 @@ def test_fresh_install_uses_chinese_names(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
     assert config.db_path() == str(tmp_path / "汽車保養資料" / "保養資料.db")
     assert config.auto_backup_dir() == str(tmp_path / "汽車保養資料" / "自動備份")
+
+
+def test_uri_path_handles_network_paths():
+    from app.db import _uri_path
+    assert _uri_path("//NAS/share/x.db").startswith("////NAS/share/")  # file:////NAS/... (no URI authority)
+    assert not _uri_path("/tmp/a b.db").startswith("//")
+
+
+def test_rotation_with_glob_chars_in_folder(db, tmp_path):
+    folder = tmp_path / "[修車] 資料"  # [ ] are glob patterns and valid on Windows
+    folder.mkdir()
+    for i in range(5):
+        (folder / f"{config.AUTO_BACKUP_PREFIX}2025010{i}.db").write_bytes(b"")
+    backup.daily_auto_backup(db, str(folder), keep=3)
+    assert len(os.listdir(folder)) == 3

@@ -32,7 +32,7 @@ class RecordForm(QtWidgets.QWidget):
         super().__init__(parent)
         self.db = db
         self.editing_id = editing_id
-        self._extra_items = []  # deleted items still on the record being edited
+        self._record_item_ids = []  # items on the record being edited (they keep a chip even once deleted)
 
         form = QtWidgets.QGridLayout(self)
         form.setContentsMargins(0, 0, 0, 0)
@@ -142,8 +142,14 @@ class RecordForm(QtWidgets.QWidget):
 
     def reload_items(self, keep_selection: bool = True):
         active = self.db.list_items()
-        ids = {i["id"] for i in active}
-        extra = [e for e in self._extra_items if e["id"] not in ids]
+        extra = []
+        if self._record_item_ids:
+            # deleted items that are on the record being edited keep their chip
+            # (also when deleted during this edit), otherwise saving would
+            # silently drop them from the record
+            ids = {i["id"] for i in active}
+            extra = [i for i in self.db.list_items(include_hidden=True)
+                     if i["id"] in self._record_item_ids and i["id"] not in ids]
         self.items.set_items(active + extra, keep_selection=keep_selection)
 
     # ---------------------------------------------------------------- public
@@ -175,11 +181,7 @@ class RecordForm(QtWidgets.QWidget):
         self.amount.setText(str(rec["amount"]))
         self.mileage.setText(str(rec["mileage"]) if rec.get("mileage") is not None else "")
         self.note.setText(rec.get("note") or "")
-        # deleted items that are on this record keep a chip while editing,
-        # otherwise saving would silently drop them from the record
-        active = {i["id"] for i in self.db.list_items()}
-        self._extra_items = [{"id": iid, "name": name}
-                             for iid, name in zip(rec["item_ids"], rec["item_names"]) if iid not in active]
+        self._record_item_ids = list(rec["item_ids"])
         self.reload_items(keep_selection=False)
         self.items.set_selected(rec["item_ids"])
 

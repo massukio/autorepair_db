@@ -49,7 +49,13 @@ def main() -> int:
         app.installTranslator(translator)
 
     # one copy at a time: two copies writing the same database would block each other
-    lock = QtCore.QLockFile(os.path.join(config.data_dir(), config.LOCK_FILENAME))
+    try:
+        folder = config.data_dir()
+    except OSError as e:
+        QtWidgets.QMessageBox.critical(
+            None, "無法開啟資料", f"找不到可以存放資料的資料夾。\n請把程式放到「文件」或桌面再打開。\n\n{e}")
+        return 1
+    lock = QtCore.QLockFile(os.path.join(folder, config.LOCK_FILENAME))
     lock.setStaleLockTime(0)  # a lock left by a crash is detected via the dead process id
     if not lock.tryLock(100):
         QtWidgets.QMessageBox.information(

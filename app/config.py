@@ -12,10 +12,10 @@ import os
 import sys
 
 APP_NAME = "汽車保養資料庫"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 APP_AUTHOR = "Sukio Lin"
 APP_CREATED_YEAR = 2026
-APP_RELEASE_DATE = "2026-11-20"
+APP_RELEASE_DATE = "2026-11-24"
 APP_LICENSE = "MIT License"
 APP_LICENSE_URL = "https://opensource.org/licenses/MIT"
 

@@ -55,6 +55,14 @@ Proven loop (from macOS/Linux with `sshpass`):
 Single-instance check: launching a second copy must only show 「…已經開著了」
 (`QLockFile` in `start.py`); close those test dialogs afterwards.
 
+Gotchas (2026-11-24): give `scp` an absolute `C:/Users/<user>/...` destination
+(a relative one failed); `findstr` with Chinese in a cmd `&&` chain fails and
+silently stops the chain; send PowerShell as a UTF-16LE+BOM `.ps1` file instead
+of quoting through ssh. Release zip: build it on Windows with .NET
+`ZipFile.CreateFromDirectory(..., UTF8)` so the Chinese exe name has the UTF-8
+flag (check `flag_bits & 0x800` with Python); deliver as
+`dist/汽車保養資料庫_<version>.zip` (dist/ is gitignored).
+
 Gotchas: the SSH server sometimes rejects the password after many quick
 connections — wait and retry; a dropped `scp` means the remote still has the old
 source (check timestamps before trusting a "Build OK"); `Copy-Item` fails while

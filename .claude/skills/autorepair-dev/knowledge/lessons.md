@@ -132,3 +132,33 @@ Entry format:
 - A ✓ prefix / bold on selected item chips changed their width. Rule: colour only.
   (Shared with new_again_db, where it made wrapped chips jump lines.)
 - Stylesheet table rules use `QTableView` selectors (also match QTableWidget).
+
+## 2026-11-24 — Whole-app review: three page-logic bugs
+- Editing a record, then deleting one of its items from the item list during the
+  edit, silently removed that item from the record on save (the delete prompt
+  promises old records keep it). Fix: the form keeps a chip for every item that
+  was on the record being edited, looked up live from the database.
+- 「顯示更多」 re-introduced the O(n²) fill (setItem with ResizeToContents
+  columns): 5 clicks took 9.8 s on 3k rows. Fix: `fill_table(..., append=True)`;
+  never fill a table without it.
+- 查詢紀錄 「今天/這個月/今年」 kept the dates from when it was clicked; open past
+  midnight it showed yesterday. Fix: remember the quick-range key and recompute
+  the dates in `refresh()`.
+- Verified OK: font size persists across restarts (settings table), auto backup
+  keeps exactly the newest 30, a same-day rerun makes no new file.
+- `tests/conftest.py` was mentioned here but had never been committed; it now exists.
+  The system Python here has no PyQt5, so UI tests skip silently: use a venv.
+
+## 2026-11-24 — 1.0.2 pre-release review (two independent reviewers)
+- Data reviewer: restore from a network path (\\NAS\share) was reported as a
+  corrupt file (the URI `file://NAS/...` has an authority SQLite rejects → use
+  `file:////NAS/...`); a restore whose upgrade failed half way left the app on an
+  un-migrated database (now the safety copy is restored automatically);
+  backup rotation `glob` broke on `[ ]` in the folder path (use `glob.escape`);
+  `data_dir()` failure at start-up exited without a message; typing a name without
+  `.db`/`.pdf` skipped the save dialog's overwrite question.
+- UI reviewer: PDF default name took the raw plate filter text (`/ * ?` invalid on
+  Windows → `pdf.safe_filename`); chosen item chips on 新增紀錄 survived a restore
+  although item ids may mean other items there.
+- Windows build ran the tests and caught a test of mine using `*` in a folder name
+  (invalid on Windows). Test file names must be valid on Windows too.
