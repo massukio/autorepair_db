@@ -126,3 +126,91 @@ def test_failed_restore_puts_old_data_back(qapp, data_dir, tmp_path, monkeypatch
 def test_pdf_filename_is_safe_on_windows():
     from app.ui.pdf import safe_filename
     assert safe_filename('保養紀錄_AB/12*?:"<>|\\x.pdf') == "保養紀錄_AB12x.pdf"
+
+
+def test_manual_is_complete():
+    """Every picture exists, every link has its target, every page has a chapter."""
+    import re
+    from app.ui import manual
+    from app.ui.main_window import MainWindow
+    html = manual.manual_html()
+    names = set(re.findall(r'<a name="([^"]+)"', html))
+    for img in manual.image_names(html):
+        assert os.path.exists(os.path.join(manual.MANUAL_DIR, img)), img
+    for link in re.findall(r'<a href="#([^"]+)"', html):
+        assert link in names, link
+    assert set(MainWindow.MANUAL_ANCHORS) <= names and "toc" in names
+
+
+def test_manual_opens_at_the_current_page_and_saves_pdf(qapp, data_dir, tmp_path, monkeypatch):
+    from PyQt5 import QtCore
+    from app.ui import manual
+    from app.ui.main_window import MainWindow
+    db = Database(config.db_path())
+    w = MainWindow(db)
+    w.resize(1070, 540)
+    w.show()
+    w.show_page(3)
+    w.open_manual()
+    dlg = w._manual
+    for _ in range(20):
+        qapp.processEvents()
+        QtCore.QThread.msleep(10)
+    assert dlg.isVisible() and not dlg.isModal()
+    assert "備份" in dlg.view.toPlainText() and dlg.view.verticalScrollBar().value() > 0  # at chapter 六
+    w.open_manual()  # a second click reuses the same window
+    assert w._manual is dlg
+    # the header never cuts a tab or the help button off
+    assert w.header.sizeHint().width() <= w.width()
+    out = tmp_path / "說明.pdf"
+    monkeypatch.setattr(manual.QtWidgets.QFileDialog, "getSaveFileName", lambda *a, **k: (str(out), ""))
+    monkeypatch.setattr(manual, "ask", lambda *a, **k: False)
+    dlg.save_pdf()
+    assert out.exists() and out.stat().st_size > 100_000  # text + pictures
+    dlg.close()
+    w.close()
+    db.close()
+
+
+def test_chip_grid_relayout_never_runs_after_it_is_gone(qapp):
+    """A font change schedules a relayout; closing the window first must not crash."""
+    import sys
+    from PyQt5 import QtCore, QtWidgets
+    from app.ui.widgets import ItemGrid
+    errors = []
+    old, sys.excepthook = sys.excepthook, lambda *a: errors.append(a[1])
+    try:
+        holder = QtWidgets.QWidget()
+        grid = ItemGrid(holder)
+        grid.set_items([{"id": 1, "name": "機油"}, {"id": 2, "name": "電瓶"}])
+        holder.setStyleSheet("QPushButton { font-size: 30pt; }")  # like 設定 → 字體大小
+        from PyQt5 import sip
+        sip.delete(holder)  # the window is gone before the relayout runs
+        for _ in range(5):
+            qapp.processEvents()
+    finally:
+        sys.excepthook = old
+    assert not errors, errors
+
+
+def test_release_zip_is_one_folder_with_exe_and_manual(tmp_path):
+    """The zip users get: a folder with the exe and ONE html manual (pictures inside)."""
+    import importlib.util
+    import zipfile
+    from app import config as cfg
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec = importlib.util.spec_from_file_location("make_release", os.path.join(root, "tools", "make_release.py"))
+    mr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mr)
+    exe = tmp_path / f"{cfg.APP_NAME}.exe"
+    exe.write_bytes(b"MZ fake exe")
+    out = mr.pack(str(exe), str(tmp_path))
+    folder = f"{cfg.APP_NAME}_{cfg.APP_VERSION}"
+    with zipfile.ZipFile(out) as z:
+        assert z.namelist() == [f"{folder}/{cfg.APP_NAME}.exe", f"{folder}/使用說明書.html"]
+        assert all(i.flag_bits & 0x800 for i in z.infolist())  # Chinese names show right in Windows
+        html = z.read(f"{folder}/使用說明書.html").decode("utf-8")
+    import re
+    srcs = re.findall(r'<img src="([^"]+)"', html)
+    assert srcs and all(s.startswith("data:image/png;base64,") for s in srcs)  # no outside files needed
+    assert '<a name="toc">' in html

@@ -16,6 +16,8 @@ An offline Windows app for a small auto repair shop to record every customer vis
 
 ## 使用方式（給店家）
 
+程式右上角的「**？ 使用說明**」（或按 F1）有完整的圖文使用說明書，也可以存成 PDF 印出來。
+
 1. 把 `汽車保養資料庫.exe` 放到一個資料夾裡（例如桌面上的「保養紀錄」資料夾），點兩下開啟。
 2. 第一次開啟會在 exe 旁邊建立 `汽車保養資料` 資料夾，**所有資料都在這裡**。
    搬家時把整個資料夾（exe + `汽車保養資料`）一起複製即可。

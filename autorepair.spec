@@ -5,6 +5,7 @@ import os
 icon = os.path.join("assets", "app.ico")
 png = os.path.join("assets", "app.png")
 datas = [(p, "assets") for p in (icon, png) if os.path.exists(p)]
+datas += [(os.path.join("assets", "manual"), os.path.join("assets", "manual"))]  # 使用說明 + pictures
 
 a = Analysis(
     ["start.py"],

@@ -60,7 +60,7 @@ def button(text: str, role: Optional[str] = None, slot=None) -> QtWidgets.QPushB
     if role:
         b.setProperty("role", role)
     b.setCursor(QtCore.Qt.PointingHandCursor)
-    b.setFocusPolicy(QtCore.Qt.NoFocus if role in ("item", "nav", "seg", "link") else QtCore.Qt.StrongFocus)
+    b.setFocusPolicy(QtCore.Qt.NoFocus if role in ("item", "nav", "seg", "link", "help") else QtCore.Qt.StrongFocus)
     # never let Enter "click" a button the user cannot see is focused; dialogs handle Enter themselves
     b.setAutoDefault(False)
     if slot is not None:
@@ -357,6 +357,11 @@ class ItemGrid(QtWidgets.QWidget):
 
     def __init__(self, parent=None, max_columns: int = 5):
         super().__init__(parent)
+        # owned by the grid, so it can never fire after the grid (and its chips) are gone
+        self._relayout_timer = QtCore.QTimer(self)
+        self._relayout_timer.setSingleShot(True)
+        self._relayout_timer.setInterval(0)
+        self._relayout_timer.timeout.connect(lambda: self._relayout(force=True))
         self.max_columns = max_columns
         self.columns = 3
         self.grid = QtWidgets.QGridLayout(self)
@@ -421,7 +426,9 @@ class ItemGrid(QtWidgets.QWidget):
     def changeEvent(self, event):  # font size changed via stylesheet
         super().changeEvent(event)
         if event.type() in (QtCore.QEvent.StyleChange, QtCore.QEvent.FontChange):
-            QtCore.QTimer.singleShot(0, lambda: self._relayout(force=True))
+            timer = getattr(self, "_relayout_timer", None)  # style events can arrive while building
+            if timer is not None:
+                timer.start()
 
     @staticmethod
     def _decorate(b: QtWidgets.QPushButton):

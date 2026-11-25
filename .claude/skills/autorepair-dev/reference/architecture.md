@@ -24,6 +24,10 @@ app/ui/widgets.py        Card, Tile, Segmented, WrapLabel, DatePicker, OptionalD
 app/ui/style.py          palette, global stylesheet build_stylesheet(base_pt), scaling registry sized()
 app/ui/pdf.py            HTML -> A4 PDF (QTextDocument + QPrinter), save_pdf() with open prompt
 assets/icon_source.jpg   icon artwork (source of truth); app.ico/app.png are generated (gitignored)
+app/ui/manual.py         使用說明 window (QTextBrowser, not modal, opens at the current page's
+                         chapter, 存成 PDF) - same file in new_again_db
+assets/manual/           manual.html (the text, Traditional Chinese) + highlighted screenshots
+tools/make_manual.py     regenerates assets/manual/*.png with numbered orange highlights
 tools/make_icon.py       builds assets/app.ico (16-256) + app.png from icon_source.jpg
 tools/screenshot.py      renders every page at several window sizes + sample PDFs (offscreen)
 tools/make_fake_data.py  ~1 year of realistic fake records (makes a safety copy first)

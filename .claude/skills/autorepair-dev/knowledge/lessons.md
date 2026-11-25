@@ -162,3 +162,27 @@ Entry format:
   although item ids may mean other items there.
 - Windows build ran the tests and caught a test of mine using `*` in a folder name
   (invalid on Windows). Test file names must be valid on Windows too.
+
+## 2026-11-25 — 使用說明 (in-app manual) for both apps
+- Owner asked for a Chinese manual with a table of contents, Taiwanese spoken
+  style and highlighted screenshots, packed into the program. Built as
+  `app/ui/manual.py` + `assets/manual/` + `tools/make_manual.py` (same in both apps).
+- Making the screenshots found real UI bugs: the new header button squeezed the
+  program name (now hidden only when there is no room, tabs slightly tighter);
+  the 修改資料 phone-box issue was carwash only.
+- Highlight boxes must only cover what is visible: clip to the window and to
+  every scroll-area viewport on the way (`rect_of`), or boxes point at nothing.
+- The first Windows build failed in a test: `ItemGrid.changeEvent` used
+  `QTimer.singleShot(0, lambda ...)`; if the window was deleted before it fired,
+  it touched deleted chips (RuntimeError). Rule: a deferred call on a widget uses a
+  QTimer OWNED by that widget (dies with it), never a bare lambda singleShot.
+  A "1 passed, 1 error" seen once on the Mac was this same flaky crash, not tooling noise
+  — never wave off an intermittent error; reproduce it (`sip.delete` the parent).
+- Tests that depend on the real font size must call `apply_font_size()` after
+  resizing: the window's resize timer has not run yet in a test.
+
+## 2026-11-25 — Release zip layout
+- Owner: each zip must be one folder holding the exe and the manual html only. The
+  hand-made zips held a bare exe, and old zips sat next to new ones in dist/ and in the
+  VM test folders, which looked like "a zip inside the zip". Rule: the build makes the
+  zip (`tools/make_release.py`), and check the zip's contents before reporting.

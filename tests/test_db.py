@@ -360,3 +360,17 @@ def test_rotation_with_glob_chars_in_folder(db, tmp_path):
         (folder / f"{config.AUTO_BACKUP_PREFIX}2025010{i}.db").write_bytes(b"")
     backup.daily_auto_backup(db, str(folder), keep=3)
     assert len(os.listdir(folder)) == 3
+
+
+def test_bad_backup_copy_never_replaces_a_good_one(db, tmp_path, monkeypatch):
+    dest = tmp_path / "備份.db"
+    db.backup_to(str(dest))
+    good = dest.read_bytes()
+
+    def broken(_path):
+        raise DataError("備份檔已損壞，無法還原。")
+    monkeypatch.setattr(Database, "check_backup_file", staticmethod(broken))
+    with pytest.raises(DataError):
+        db.backup_to(str(dest))
+    assert dest.read_bytes() == good
+    assert not os.path.exists(str(dest) + ".tmp")

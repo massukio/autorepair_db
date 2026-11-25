@@ -80,3 +80,27 @@ F5, or rename to confirm).
    blocked: `git push https://github.com/massukio/autorepair_db.git main`).
 5. Deliver `dist\汽車保養資料庫.exe`. Users keep the exe and `汽車保養資料`
    folder together; upgrading = replace the exe only.
+
+## Manual screenshots (tools/make_manual.py) — run on Windows
+
+- Offscreen Qt on Windows has NO system fonts unless told where they are:
+  `$env:QT_QPA_PLATFORM="offscreen"; $env:QT_QPA_FONTDIR="C:\Windows\Fonts"`.
+  The windows platform over SSH (session 0) works but its screen is 1024×768, so
+  windows are squeezed — use offscreen + QT_QPA_FONTDIR (1280×900 pictures).
+- Point the data dir env var at an EMPTY folder with a natural Chinese path
+  (e.g. `C:\汽車保養資料庫\汽車保養資料`): the 備份/還原 picture shows it. Delete it after.
+- Copy the PNGs back into the repo (they are committed) and build: the spec bundles
+  `assets/manual`. Check a running exe: `%TEMP%\_MEI*\assets\manual` holds the files.
+- VM automation: injected mouse/keys do nothing while the VM's desktop session is
+  disconnected (PrintWindow still works). In PowerShell, `$null` passed to a string
+  parameter becomes "" — use `[NullString]::Value` (e.g. `FindWindow`).
+
+## Release zip (owner rule, 2026-11-25)
+
+`build_exe.bat` ends with `tools/make_release.py`, which writes
+`dist/<APP_NAME>_<APP_VERSION>.zip` = ONE folder `<APP_NAME>_<APP_VERSION>/` with exactly
+two files: the exe and `使用說明書.html` (the in-app manual as a single file, pictures
+embedded as data URIs, opens in any browser). It verifies the zip and fails the build
+otherwise; Python's zipfile sets the UTF-8 flag for the Chinese names. Deliver that
+zip as built — do not hand-pack zips in PowerShell any more (older notes above).
+`test_release_zip_is_one_folder_with_exe_and_manual` guards the layout.

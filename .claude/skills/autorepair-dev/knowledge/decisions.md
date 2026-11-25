@@ -33,3 +33,4 @@ Format: `YYYY-MM-DD — decision — why / context`
   are elderly Chinese readers browsing these folders in Explorer.
 - 2026-11-20 — 1.0.1: visible selection/focus, safe default on confirmations, no hidden Enter clicks, hourly auto-backup check.
 - 2026-11-24 — 1.0.2 released (review fixes: edit keeps items, faster 顯示更多, overnight ranges, restore/backup edge cases).
+- 2026-11-25 — In-app 使用說明 (owner request): Traditional Chinese, Taiwanese spoken style, table of contents, screenshots with numbered highlights, opens from the header / F1, can be saved as PDF. Released as 1.0.3 (also: backup verified before replacing, hourly backup error shown once).

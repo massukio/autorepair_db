@@ -513,8 +513,9 @@ class Database:
                 os.remove(tmp)
             self.conn.commit()
             self.conn.execute("VACUUM INTO ?", (tmp,))
+            self.check_backup_file(tmp)  # never replace an older good backup with a bad copy
             os.replace(tmp, dest_path)
-        except (OSError, sqlite3.Error) as e:
+        except (OSError, sqlite3.Error, DataError) as e:
             try:
                 if os.path.exists(tmp):
                     os.remove(tmp)

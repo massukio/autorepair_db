@@ -17,6 +17,15 @@ def _log_path() -> str:
         return os.path.join(os.path.expanduser("~"), f"{config.APP_NAME}_{config.LOG_FILENAME}")
 
 
+def _log(exc) -> None:
+    text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    try:
+        with open(_log_path(), "a", encoding="utf-8") as f:
+            f.write(f"\n[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}]\n{text}")
+    except OSError:
+        pass
+
+
 def _excepthook(exc_type, exc, tb):
     text = "".join(traceback.format_exception(exc_type, exc, tb))
     try:
@@ -77,11 +86,17 @@ def main() -> int:
     win = MainWindow(db)
     win.showMaximized()
 
+    told = {"backup_failed": False}
+
     def hourly_backup():  # the PC may stay on for days: make the new day's backup too
         try:
             backup.daily_auto_backup(db, config.auto_backup_dir())
         except Exception as e:  # noqa: BLE001
-            _excepthook(type(e), e, e.__traceback__)
+            if told["backup_failed"]:
+                _log(e)  # already told once: a full disk must not pop up every hour
+            else:
+                told["backup_failed"] = True
+                _excepthook(type(e), e, e.__traceback__)
     backup_timer = QtCore.QTimer()
     backup_timer.timeout.connect(hourly_backup)
     backup_timer.start(60 * 60 * 1000)

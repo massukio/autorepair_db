@@ -33,7 +33,7 @@ class MainWindow(QtWidgets.QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        header = QtWidgets.QFrame()
+        header = self.header = QtWidgets.QFrame()
         header.setProperty("role", "header")
         nav = QtWidgets.QHBoxLayout(header)
         sized(nav, "setContentsMargins", 20, 10, 20, 10)
@@ -42,10 +42,10 @@ class MainWindow(QtWidgets.QMainWindow):
         sized(mark, "setFixedSize", 44, 44)
         nav.addWidget(mark)
         nav.addSpacing(6)
-        brand = QtWidgets.QLabel(config.APP_NAME)
+        brand = self.brand = QtWidgets.QLabel(config.APP_NAME)
         brand.setProperty("role", "brand")
         nav.addWidget(brand)
-        nav.addSpacing(24)
+        nav.addSpacing(16)
 
         self.stack = QtWidgets.QStackedWidget()
         self.group = QtWidgets.QButtonGroup(self)
@@ -67,6 +67,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.stack.addWidget(page)
             page.data_changed.connect(self._on_data_changed)
         nav.addStretch(1)
+        self.help_btn = button("？ 使用說明", "help", lambda: self.open_manual())
+        self.help_btn.setToolTip("看這個程式怎麼用（也可以按鍵盤上的 F1）")
+        nav.addWidget(self.help_btn)
+        QtWidgets.QShortcut(QtGui.QKeySequence("F1"), self, lambda: self.open_manual())
+        self._manual = None
         self.group.buttonClicked[int].connect(self.show_page)
         root.addWidget(header)
         root.addWidget(self.stack, 1)
@@ -93,6 +98,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stack.setCurrentIndex(index)
         self.pages[index][1].refresh()
 
+    # the manual chapter for each page (anchors in assets/manual/manual.html)
+    MANUAL_ANCHORS = ["new", "history", "report", "backup", "settings"]
+
+    def open_manual(self, anchor=None):
+        """Open the 使用說明 at the chapter of the page the user is on."""
+        from app.ui.manual import ManualDialog
+        anchor = anchor or self.MANUAL_ANCHORS[self.stack.currentIndex()]
+        if self._manual is None:
+            self._manual = ManualDialog(self)
+        self._manual.go(anchor)
+        self._manual.show()
+        self._manual.raise_()
+        self._manual.activateWindow()
+
     def open_history(self, plate: str):
         self.group.button(1).setChecked(True)
         self.stack.setCurrentIndex(1)
@@ -111,7 +130,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self._fit_header()
         self._resize_timer.start()
+
+    def _fit_header(self):
+        """Hide the program name (the icon stays) when the header has no room for it,
+        so no tab and no 使用說明 button is ever cut off."""
+        self.brand.setVisible(True)
+        self.brand.setVisible(self.header.sizeHint().width() <= self.width())
 
     def apply_font_size(self, force: bool = False):
         """Pick the font size from the window size and the user's 小/中/大/特大 choice."""
@@ -127,6 +153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._base_pt = base
         set_scale(base / config.REF_FONT_PT)
         QtWidgets.QApplication.instance().setStyleSheet(build_stylesheet(base))
+        self._fit_header()  # text sizes changed
 
     def set_font_size(self, name: str):
         self.db.set_setting("font_size", name)

@@ -13,3 +13,4 @@ autorepair_data/
 .pytest_cache/
 assets/app.ico
 assets/app.png
+.DS_Store
